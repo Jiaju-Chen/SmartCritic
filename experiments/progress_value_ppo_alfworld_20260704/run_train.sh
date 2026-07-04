@@ -4,7 +4,7 @@ set -euo pipefail
 source /opt/conda/bin/activate /home/dataset-local/cjj/RL/envs/gigpo-baselines
 cd /home/dataset-local/cjj/RL/GiGPO_PVF
 
-RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_fdtmp_20260705}
+RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_fdtmp2_20260705}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/progress_value_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/progress_value_alfworld/$RUN_NAME}
@@ -86,4 +86,4 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   algorithm.use_kl_in_reward=False \
   env.resources_per_worker.num_cpus=$NUM_CPUS_PER_ENV_WORKER \
   ray_init.num_cpus=$RAY_NUM_CPUS \
-  ray_init._temp_dir=$RAY_TMPDIR
+  +ray_init._temp_dir=$RAY_TMPDIR

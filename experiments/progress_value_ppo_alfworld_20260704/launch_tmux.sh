@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_fdtmp_20260705}
+RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_fdtmp2_20260705}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/progress_value_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
-SESSION=${SESSION:-pvf_ppo_val32_8gpu_fdtmp_20260705}
+SESSION=${SESSION:-pvf_ppo_val32_8gpu_fdtmp2_20260705}
 
 mkdir -p "$RUN_DIR"/logs
 if tmux has-session -t "$SESSION" 2>/dev/null; then
