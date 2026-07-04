@@ -4,19 +4,22 @@ set -euo pipefail
 source /opt/conda/bin/activate /home/dataset-local/cjj/RL/envs/gigpo-baselines
 cd /home/dataset-local/cjj/RL/GiGPO_PVF
 
-RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_20260704}
+RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_fdtmp_20260705}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/progress_value_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/progress_value_alfworld/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 
-SHORT_TMP_ROOT=${SHORT_TMP_ROOT:-/tmp/pvfppo32}
-mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$SHORT_TMP_ROOT"/{tmp,ray}
+SHORT_RAY_TMP_ROOT=${SHORT_RAY_TMP_ROOT:-/tmp/pvfppo_ray32}
+LARGE_TMP_ROOT=${LARGE_TMP_ROOT:-/home/dataset-local/cjj/RL/tmp/pvfppo32_fastdownward}
+mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$SHORT_RAY_TMP_ROOT"/ray "$LARGE_TMP_ROOT"/tmp
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 export HOME=$RUN_DIR/home
-export TMPDIR=$SHORT_TMP_ROOT/tmp
-export RAY_TMPDIR=$SHORT_TMP_ROOT/ray
+export TMPDIR=$LARGE_TMP_ROOT/tmp
+export TEMP=$TMPDIR
+export TMP=$TMPDIR
+export RAY_TMPDIR=$SHORT_RAY_TMP_ROOT/ray
 export ALFWORLD_DATA=${ALFWORLD_DATA:-/home/dataset-local/cjj/RL/alfworld_data}
 export HF_HOME=${HF_HOME:-/home/dataset-local/cjj/RL/.cache/huggingface}
 export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
@@ -82,4 +85,5 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   actor_rollout_ref.actor.use_kl_loss=True \
   algorithm.use_kl_in_reward=False \
   env.resources_per_worker.num_cpus=$NUM_CPUS_PER_ENV_WORKER \
-  ray_init.num_cpus=$RAY_NUM_CPUS
+  ray_init.num_cpus=$RAY_NUM_CPUS \
+  ray_init._temp_dir=$RAY_TMPDIR
