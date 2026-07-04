@@ -10,7 +10,7 @@ RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/progress_value_alfworld/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 
-SHORT_TMP_ROOT=${SHORT_TMP_ROOT:-/home/dataset-local/cjj/tmp/pvfppo0705}
+SHORT_TMP_ROOT=${SHORT_TMP_ROOT:-/tmp/pvfppo}
 mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$SHORT_TMP_ROOT"/{tmp,ray}
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
