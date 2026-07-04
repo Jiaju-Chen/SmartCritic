@@ -4,13 +4,13 @@ set -euo pipefail
 source /opt/conda/bin/activate /home/dataset-local/cjj/RL/envs/gigpo-baselines
 cd /home/dataset-local/cjj/RL/GiGPO_PVF
 
-RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val140_8gpu_envcpu02_ray96_20260704}
+RUN_NAME=${RUN_NAME:-pvf_ppo_qwen25_15b_seed0_t16_g8_total128_val32_8gpu_envcpu05_ray96_20260704}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/progress_value_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/progress_value_alfworld/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 
-SHORT_TMP_ROOT=${SHORT_TMP_ROOT:-/tmp/pvfppo}
+SHORT_TMP_ROOT=${SHORT_TMP_ROOT:-/tmp/pvfppo32}
 mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$SHORT_TMP_ROOT"/{tmp,ray}
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
@@ -31,9 +31,9 @@ export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
 export NUMEXPR_NUM_THREADS=${NUMEXPR_NUM_THREADS:-1}
 export TOKENIZERS_PARALLELISM=false
 export RAYON_NUM_THREADS=${RAYON_NUM_THREADS:-1}
-export NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.2}
+export NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 export TRAIN_DATA_SIZE=${TRAIN_DATA_SIZE:-16}
-export VAL_DATA_SIZE=${VAL_DATA_SIZE:-140}
+export VAL_DATA_SIZE=${VAL_DATA_SIZE:-32}
 
 TOTAL_EPOCHS=${TOTAL_EPOCHS:-150}
 TEST_FREQ=${TEST_FREQ:-5}

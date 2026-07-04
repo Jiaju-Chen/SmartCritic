@@ -10,7 +10,7 @@ Default run:
 - train tasks: 16
 - rollout group: 8 per train task
 - total train env batch: 128
-- validation tasks: 140 seen tasks
+- validation tasks: 32 seen tasks during training; run full 140-task evaluation separately on checkpoints
 - GPUs: 8
 - epochs: 150
 - advantage estimator: `progress_value`
