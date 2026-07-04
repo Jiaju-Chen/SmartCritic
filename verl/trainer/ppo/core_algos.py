@@ -236,6 +236,107 @@ def compute_grpo_passk_outcome_advantage(
     return advantages, advantages
 
 
+def _to_numpy_1d(values, dtype=None):
+    if isinstance(values, torch.Tensor):
+        values = values.detach().cpu().numpy()
+    values = np.asarray(values)
+    if dtype is not None:
+        values = values.astype(dtype)
+    return values.reshape(-1)
+
+
+def compute_progress_value_outcome_advantage(
+    token_level_rewards: torch.Tensor,
+    response_mask: torch.Tensor,
+    index: np.ndarray,
+    traj_index: np.ndarray,
+    step_id: np.ndarray,
+    episode_lengths: np.ndarray,
+    episode_rewards: np.ndarray,
+    reward_scale: float = 1.0,
+    length_penalty: float = 0.02,
+    remaining_penalty: float = 0.02,
+    baseline_mode: str = "uid_step",
+    min_group_size: int = 2,
+    normalize_by_std: bool = False,
+    whiten: bool = True,
+    epsilon: float = 1e-6,
+):
+    """Compute action-level advantages from a lightweight progress value.
+
+    Each row in the agent batch is one environment action. The estimator uses
+    the observed episode outcome and length to assign a scalar progress target:
+
+        target_t = reward_scale * R_episode
+                   - length_penalty * L_episode
+                   - remaining_penalty * max(L_episode - step_t - 1, 0)
+
+    It then subtracts a same-task baseline, preferably among rollouts from the
+    same prompt group and the same environment step, and broadcasts the scalar
+    advantage to all generated response tokens for that action.
+    """
+    with torch.no_grad():
+        device = token_level_rewards.device
+        dtype = token_level_rewards.dtype
+        batch_size = token_level_rewards.shape[0]
+
+        uid = _to_numpy_1d(index, dtype=object)
+        traj_uid = _to_numpy_1d(traj_index, dtype=object)
+        steps = _to_numpy_1d(step_id, dtype=np.float32)
+        lengths = _to_numpy_1d(episode_lengths, dtype=np.float32)
+        rewards = _to_numpy_1d(episode_rewards, dtype=np.float32)
+
+        if not (len(uid) == len(traj_uid) == len(steps) == len(lengths) == len(rewards) == batch_size):
+            raise ValueError(
+                "progress_value expects uid, traj_uid, step_id, episode_lengths, "
+                f"and episode_rewards to match batch size {batch_size}; got "
+                f"{len(uid)}, {len(traj_uid)}, {len(steps)}, {len(lengths)}, {len(rewards)}"
+            )
+
+        remaining = np.maximum(lengths - steps - 1.0, 0.0)
+        targets_np = reward_scale * rewards - length_penalty * lengths - remaining_penalty * remaining
+        centered_np = targets_np.astype(np.float32).copy()
+
+        if baseline_mode not in {"uid_step", "uid", "none"}:
+            raise ValueError(f"Unsupported progress_value baseline_mode: {baseline_mode}")
+
+        if baseline_mode != "none":
+            group_to_indices = defaultdict(list)
+            for i in range(batch_size):
+                if baseline_mode == "uid_step":
+                    key = (uid[i], int(steps[i]))
+                else:
+                    key = uid[i]
+                group_to_indices[key].append(i)
+
+            fallback_group_to_indices = defaultdict(list)
+            if baseline_mode == "uid_step":
+                for i in range(batch_size):
+                    fallback_group_to_indices[uid[i]].append(i)
+
+            for i in range(batch_size):
+                if baseline_mode == "uid_step":
+                    key = (uid[i], int(steps[i]))
+                    group_indices = group_to_indices[key]
+                    if len(group_indices) < min_group_size:
+                        group_indices = fallback_group_to_indices[uid[i]]
+                else:
+                    group_indices = group_to_indices[uid[i]]
+
+                if len(group_indices) >= min_group_size:
+                    group_targets = targets_np[group_indices]
+                    centered_np[i] = targets_np[i] - float(np.mean(group_targets))
+                    if normalize_by_std and len(group_indices) > 1:
+                        centered_np[i] = centered_np[i] / (float(np.std(group_targets)) + epsilon)
+
+        advantages = torch.as_tensor(centered_np, dtype=dtype, device=device).unsqueeze(-1) * response_mask
+        returns = torch.as_tensor(targets_np, dtype=dtype, device=device).unsqueeze(-1) * response_mask
+        if whiten:
+            advantages = verl_F.masked_whiten(advantages, response_mask) * response_mask
+
+    return advantages, returns
+
+
 def compute_reinforce_plus_plus_baseline_outcome_advantage(token_level_rewards: torch.Tensor, response_mask: torch.Tensor, index: torch.Tensor, traj_index: np.ndarray, epsilon: float = 1e-6, compute_mean_std_cross_steps: bool = True):
     """
     Compute advantage for RF++-baseline (https://arxiv.org/abs/2501.03262), operating only on Outcome reward

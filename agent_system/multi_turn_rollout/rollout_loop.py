@@ -357,10 +357,12 @@ class TrajectoryCollector:
 
             batch.non_tensor_batch['uid'] = uid_batch
             batch.non_tensor_batch['traj_uid'] = traj_uid
+            batch.non_tensor_batch['step_id'] = np.full(batch_size, _step, dtype=np.int32)
 
             batch = batch.union(batch_output)
             
             text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
+            batch.non_tensor_batch['action_text'] = np.array(text_actions, dtype=object)
             
             next_obs, rewards, dones, infos = envs.step(text_actions)
 

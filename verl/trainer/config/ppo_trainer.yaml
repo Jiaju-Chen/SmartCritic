@@ -252,6 +252,15 @@ algorithm:
     mode: "mean_norm" # "mean_norm" or "mean_std_norm"
     enable_similarity: False # whether to use similarity-based anchor state grouping in GiGPO (supported for text-only tasks)
     similarity_thresh: 0.95 # similarity threshold for GiGPO (0.0, 1.0)
+  progress_value:
+    reward_scale: 1.0
+    length_penalty: 0.02
+    remaining_penalty: 0.02
+    baseline_mode: "uid_step" # "uid_step", "uid", or "none"
+    min_group_size: 2
+    normalize_by_std: False
+    whiten: True
+    epsilon: 1e-6
   filter_groups: # DAPO from https://arxiv.org/abs/2503.14476
     enable: False
     max_num_gen_batches: 10

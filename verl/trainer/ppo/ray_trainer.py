@@ -94,6 +94,7 @@ class AdvantageEstimator(str, Enum):
     RLOO = "rloo"
     GRPO_PASSK = "grpo_passk"
     GiGPO = 'gigpo'
+    PROGRESS_VALUE = "progress_value"
 
 
 @dataclass
@@ -241,7 +242,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, **kwargs):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, **kwargs):
     """Compute advantage estimates for policy optimization.
 
     This function computes advantage estimates using various estimators like GAE, GRPO, REINFORCE++, etc.
@@ -357,6 +358,27 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             )
         data.batch['advantages'] = advantages
         data.batch['returns'] = returns
+    elif adv_estimator == AdvantageEstimator.PROGRESS_VALUE:
+        progress_value_cfg = progress_value_cfg or {}
+        advantages, returns = core_algos.compute_progress_value_outcome_advantage(
+            token_level_rewards=data.batch['token_level_rewards'],
+            response_mask=data.batch['response_mask'],
+            index=data.non_tensor_batch['uid'],
+            traj_index=data.non_tensor_batch['traj_uid'],
+            step_id=data.non_tensor_batch['step_id'],
+            episode_lengths=data.non_tensor_batch['episode_lengths'],
+            episode_rewards=data.non_tensor_batch['episode_rewards'],
+            reward_scale=progress_value_cfg.get('reward_scale', 1.0),
+            length_penalty=progress_value_cfg.get('length_penalty', 0.02),
+            remaining_penalty=progress_value_cfg.get('remaining_penalty', 0.02),
+            baseline_mode=progress_value_cfg.get('baseline_mode', 'uid_step'),
+            min_group_size=progress_value_cfg.get('min_group_size', 2),
+            normalize_by_std=progress_value_cfg.get('normalize_by_std', False),
+            whiten=progress_value_cfg.get('whiten', True),
+            epsilon=progress_value_cfg.get('epsilon', 1e-6),
+        )
+        data.batch['advantages'] = advantages
+        data.batch['returns'] = returns
     else:
         raise NotImplementedError
     return data
@@ -451,7 +473,8 @@ class RayPPOTrainer:
             AdvantageEstimator.REMAX,
             AdvantageEstimator.RLOO,
             AdvantageEstimator.REINFORCE_PLUS_PLUS_BASELINE,
-            AdvantageEstimator.GiGPO
+            AdvantageEstimator.GiGPO,
+            AdvantageEstimator.PROGRESS_VALUE,
         ]:
             self.use_critic = False
         else:
@@ -1233,6 +1256,7 @@ class RayPPOTrainer:
                             gigpo_mode=self.config.algorithm.gigpo.mode,
                             gigpo_enable_similarity= self.config.algorithm.gigpo.enable_similarity,
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
+                            progress_value_cfg=self.config.algorithm.get("progress_value", {}),
                         )
 
                     # update critic
