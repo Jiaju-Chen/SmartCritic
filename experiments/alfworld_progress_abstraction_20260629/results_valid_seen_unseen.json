@@ -1,0 +1,776 @@
+{
+  "alfworld_root": "/home/dataset-local/cjj/RL/alfworld_data",
+  "splits": [
+    "valid_seen",
+    "valid_unseen"
+  ],
+  "num_records": 506,
+  "lengths": {
+    "look_at_obj_in_light": {
+      "n": 83,
+      "mean_high_level_steps": 5,
+      "median_high_level_steps": 5,
+      "p90_high_level_steps": 5.0
+    },
+    "pick_and_place_simple": {
+      "n": 76,
+      "mean_high_level_steps": 4.7631578947368425,
+      "median_high_level_steps": 5.0,
+      "p90_high_level_steps": 5.0
+    },
+    "pick_and_place_with_movable_recep": {
+      "n": 67,
+      "mean_high_level_steps": 8.417910447761194,
+      "median_high_level_steps": 8,
+      "p90_high_level_steps": 12.0
+    },
+    "pick_clean_then_place_in_recep": {
+      "n": 73,
+      "mean_high_level_steps": 7.410958904109589,
+      "median_high_level_steps": 7,
+      "p90_high_level_steps": 7.0
+    },
+    "pick_cool_then_place_in_recep": {
+      "n": 74,
+      "mean_high_level_steps": 8.202702702702704,
+      "median_high_level_steps": 7.0,
+      "p90_high_level_steps": 12.0
+    },
+    "pick_heat_then_place_in_recep": {
+      "n": 76,
+      "mean_high_level_steps": 8.881578947368421,
+      "median_high_level_steps": 7.0,
+      "p90_high_level_steps": 13.0
+    },
+    "pick_two_obj_and_place": {
+      "n": 57,
+      "mean_high_level_steps": 9.403508771929825,
+      "median_high_level_steps": 9,
+      "p90_high_level_steps": 9.0
+    },
+    "_overall": {
+      "n": 506,
+      "mean_high_level_steps": 7.312252964426878,
+      "median_high_level_steps": 7.0,
+      "p90_high_level_steps": 12.0
+    }
+  },
+  "actions": {
+    "overall": {
+      "go": 1561,
+      "take": 705,
+      "put": 618,
+      "noop": 435,
+      "toggle": 83,
+      "heat": 76,
+      "slice": 74,
+      "cool": 74,
+      "clean": 73,
+      "coolobject": 1
+    },
+    "by_task": {
+      "look_at_obj_in_light": {
+        "go": 166,
+        "take": 83,
+        "toggle": 83,
+        "noop": 83
+      },
+      "pick_and_place_simple": {
+        "go": 152,
+        "take": 76,
+        "put": 76,
+        "noop": 58
+      },
+      "pick_and_place_with_movable_recep": {
+        "go": 209,
+        "take": 143,
+        "put": 141,
+        "noop": 61,
+        "slice": 10
+      },
+      "pick_clean_then_place_in_recep": {
+        "go": 237,
+        "take": 81,
+        "put": 81,
+        "clean": 73,
+        "noop": 62,
+        "slice": 7
+      },
+      "pick_cool_then_place_in_recep": {
+        "go": 273,
+        "take": 95,
+        "put": 95,
+        "cool": 74,
+        "noop": 50,
+        "slice": 20
+      },
+      "pick_heat_then_place_in_recep": {
+        "go": 290,
+        "take": 108,
+        "put": 108,
+        "heat": 76,
+        "noop": 64,
+        "slice": 29
+      },
+      "pick_two_obj_and_place": {
+        "go": 234,
+        "take": 119,
+        "put": 117,
+        "noop": 57,
+        "slice": 8,
+        "coolobject": 1
+      }
+    }
+  },
+  "abstraction_density": {
+    "raw_prefix_global": {
+      "items": 4206,
+      "unique_groups": 2344,
+      "compression": 1.7943686006825939,
+      "repeated_item_fraction": 0.5886828340466,
+      "repeated_groups": 614,
+      "mean_group_size": 1.7943686006825939,
+      "max_group_size": 83
+    },
+    "action_schema_global": {
+      "items": 3700,
+      "unique_groups": 10,
+      "compression": 370.0,
+      "repeated_item_fraction": 0.9997297297297297,
+      "repeated_groups": 9,
+      "mean_group_size": 370.0,
+      "max_group_size": 1561
+    },
+    "progress_coarse_global": {
+      "items": 4206,
+      "unique_groups": 728,
+      "compression": 5.777472527472527,
+      "repeated_item_fraction": 0.9524488825487399,
+      "repeated_groups": 528,
+      "mean_group_size": 5.777472527472527,
+      "max_group_size": 86
+    },
+    "progress_medium_global": {
+      "items": 4206,
+      "unique_groups": 1634,
+      "compression": 2.574051407588739,
+      "repeated_item_fraction": 0.7541607227769852,
+      "repeated_groups": 600,
+      "mean_group_size": 2.574051407588739,
+      "max_group_size": 83
+    },
+    "progress_medium_plus_action_schema": {
+      "items": 3700,
+      "unique_groups": 1352,
+      "compression": 2.7366863905325443,
+      "repeated_item_fraction": 0.7686486486486487,
+      "repeated_groups": 496,
+      "mean_group_size": 2.7366863905325443,
+      "max_group_size": 83
+    },
+    "progress_medium_plus_action_semantic": {
+      "items": 3700,
+      "unique_groups": 1831,
+      "compression": 2.020753686510104,
+      "repeated_item_fraction": 0.6813513513513514,
+      "repeated_groups": 652,
+      "mean_group_size": 2.020753686510104,
+      "max_group_size": 41
+    },
+    "by_task": {
+      "look_at_obj_in_light": {
+        "raw_prefix": {
+          "items": 498,
+          "unique_groups": 227,
+          "compression": 2.193832599118943,
+          "repeated_item_fraction": 0.7409638554216867,
+          "repeated_groups": 98,
+          "mean_group_size": 2.193832599118943,
+          "max_group_size": 83
+        },
+        "progress_coarse": {
+          "items": 498,
+          "unique_groups": 41,
+          "compression": 12.146341463414634,
+          "repeated_item_fraction": 0.9799196787148594,
+          "repeated_groups": 31,
+          "mean_group_size": 12.146341463414634,
+          "max_group_size": 86
+        },
+        "progress_medium": {
+          "items": 498,
+          "unique_groups": 102,
+          "compression": 4.882352941176471,
+          "repeated_item_fraction": 0.9518072289156626,
+          "repeated_groups": 78,
+          "mean_group_size": 4.882352941176471,
+          "max_group_size": 83
+        }
+      },
+      "pick_and_place_simple": {
+        "raw_prefix": {
+          "items": 438,
+          "unique_groups": 223,
+          "compression": 1.9641255605381165,
+          "repeated_item_fraction": 0.634703196347032,
+          "repeated_groups": 63,
+          "mean_group_size": 1.9641255605381165,
+          "max_group_size": 76
+        },
+        "progress_coarse": {
+          "items": 438,
+          "unique_groups": 81,
+          "compression": 5.407407407407407,
+          "repeated_item_fraction": 0.9634703196347032,
+          "repeated_groups": 65,
+          "mean_group_size": 5.407407407407407,
+          "max_group_size": 76
+        },
+        "progress_medium": {
+          "items": 438,
+          "unique_groups": 138,
+          "compression": 3.1739130434782608,
+          "repeated_item_fraction": 0.8470319634703196,
+          "repeated_groups": 71,
+          "mean_group_size": 3.1739130434782608,
+          "max_group_size": 76
+        }
+      },
+      "pick_and_place_with_movable_recep": {
+        "raw_prefix": {
+          "items": 631,
+          "unique_groups": 399,
+          "compression": 1.581453634085213,
+          "repeated_item_fraction": 0.4754358161648177,
+          "repeated_groups": 68,
+          "mean_group_size": 1.581453634085213,
+          "max_group_size": 67
+        },
+        "progress_coarse": {
+          "items": 631,
+          "unique_groups": 126,
+          "compression": 5.007936507936508,
+          "repeated_item_fraction": 0.9445324881141046,
+          "repeated_groups": 91,
+          "mean_group_size": 5.007936507936508,
+          "max_group_size": 67
+        },
+        "progress_medium": {
+          "items": 631,
+          "unique_groups": 294,
+          "compression": 2.1462585034013606,
+          "repeated_item_fraction": 0.6687797147385103,
+          "repeated_groups": 85,
+          "mean_group_size": 2.1462585034013606,
+          "max_group_size": 67
+        }
+      },
+      "pick_clean_then_place_in_recep": {
+        "raw_prefix": {
+          "items": 614,
+          "unique_groups": 288,
+          "compression": 2.1319444444444446,
+          "repeated_item_fraction": 0.7149837133550488,
+          "repeated_groups": 113,
+          "mean_group_size": 2.1319444444444446,
+          "max_group_size": 73
+        },
+        "progress_coarse": {
+          "items": 614,
+          "unique_groups": 84,
+          "compression": 7.309523809523809,
+          "repeated_item_fraction": 0.9641693811074918,
+          "repeated_groups": 62,
+          "mean_group_size": 7.309523809523809,
+          "max_group_size": 73
+        },
+        "progress_medium": {
+          "items": 614,
+          "unique_groups": 195,
+          "compression": 3.1487179487179486,
+          "repeated_item_fraction": 0.8501628664495114,
+          "repeated_groups": 103,
+          "mean_group_size": 3.1487179487179486,
+          "max_group_size": 73
+        }
+      },
+      "pick_cool_then_place_in_recep": {
+        "raw_prefix": {
+          "items": 681,
+          "unique_groups": 383,
+          "compression": 1.7780678851174934,
+          "repeated_item_fraction": 0.5697503671071953,
+          "repeated_groups": 90,
+          "mean_group_size": 1.7780678851174934,
+          "max_group_size": 74
+        },
+        "progress_coarse": {
+          "items": 681,
+          "unique_groups": 118,
+          "compression": 5.771186440677966,
+          "repeated_item_fraction": 0.9427312775330396,
+          "repeated_groups": 79,
+          "mean_group_size": 5.771186440677966,
+          "max_group_size": 74
+        },
+        "progress_medium": {
+          "items": 681,
+          "unique_groups": 292,
+          "compression": 2.3321917808219177,
+          "repeated_item_fraction": 0.6901615271659325,
+          "repeated_groups": 81,
+          "mean_group_size": 2.3321917808219177,
+          "max_group_size": 74
+        }
+      },
+      "pick_heat_then_place_in_recep": {
+        "raw_prefix": {
+          "items": 751,
+          "unique_groups": 412,
+          "compression": 1.8228155339805825,
+          "repeated_item_fraction": 0.6085219707057257,
+          "repeated_groups": 118,
+          "mean_group_size": 1.8228155339805825,
+          "max_group_size": 76
+        },
+        "progress_coarse": {
+          "items": 751,
+          "unique_groups": 127,
+          "compression": 5.913385826771654,
+          "repeated_item_fraction": 0.9507323568575233,
+          "repeated_groups": 90,
+          "mean_group_size": 5.913385826771654,
+          "max_group_size": 76
+        },
+        "progress_medium": {
+          "items": 751,
+          "unique_groups": 302,
+          "compression": 2.486754966887417,
+          "repeated_item_fraction": 0.729693741677763,
+          "repeated_groups": 99,
+          "mean_group_size": 2.486754966887417,
+          "max_group_size": 76
+        }
+      },
+      "pick_two_obj_and_place": {
+        "raw_prefix": {
+          "items": 593,
+          "unique_groups": 412,
+          "compression": 1.4393203883495145,
+          "repeated_item_fraction": 0.4131534569983137,
+          "repeated_groups": 64,
+          "mean_group_size": 1.4393203883495145,
+          "max_group_size": 57
+        },
+        "progress_coarse": {
+          "items": 593,
+          "unique_groups": 151,
+          "compression": 3.9271523178807946,
+          "repeated_item_fraction": 0.9308600337268128,
+          "repeated_groups": 110,
+          "mean_group_size": 3.9271523178807946,
+          "max_group_size": 57
+        },
+        "progress_medium": {
+          "items": 593,
+          "unique_groups": 311,
+          "compression": 1.9067524115755627,
+          "repeated_item_fraction": 0.6155143338954469,
+          "repeated_groups": 83,
+          "mean_group_size": 1.9067524115755627,
+          "max_group_size": 57
+        }
+      }
+    }
+  },
+  "eval_logs": [
+    {
+      "path": "/home/dataset-local/cjj/RL/runs/baselines_alfworld_qwen25_15b_paper/graphgpo_eval140_unseen134_tmux/logs/eval.tmux.log",
+      "exists": true,
+      "bytes": 63880,
+      "finished_status": 0,
+      "last_metrics": {
+        "step": 140,
+        "val/text/test_score": 5.778,
+        "val/text/tool_call_count/mean": 0.0,
+        "val/success_rate": 0.896,
+        "val/pick_two_obj_and_place_success_rate": 1.0,
+        "val/pick_and_place_success_rate": 0.85,
+        "val/look_at_obj_in_light_success_rate": 1.0,
+        "val/pick_cool_then_place_in_recep_success_rate": 0.958,
+        "val/pick_heat_then_place_in_recep_success_rate": 0.724,
+        "val/pick_clean_then_place_in_recep_success_rate": 0.943
+      },
+      "num_metric_lines": 1
+    },
+    {
+      "path": "/home/dataset-local/cjj/RL/runs/baselines_alfworld_qwen25_15b_paper/grpo_eval150_unseen134_tmux/logs/eval.tmux.log",
+      "exists": true,
+      "bytes": 109428,
+      "finished_status": 1,
+      "last_metrics": {
+        "step": 150,
+        "val/text/test_score": 2.965,
+        "val/text/tool_call_count/mean": 0.0,
+        "val/success_rate": 0.351,
+        "val/pick_two_obj_and_place_success_rate": 0.154,
+        "val/pick_and_place_success_rate": 0.7,
+        "val/look_at_obj_in_light_success_rate": 0.308,
+        "val/pick_cool_then_place_in_recep_success_rate": 0.417,
+        "val/pick_heat_then_place_in_recep_success_rate": 0.345,
+        "val/pick_clean_then_place_in_recep_success_rate": 0.2
+      },
+      "num_metric_lines": 1
+    },
+    {
+      "path": "/home/dataset-local/cjj/RL/runs/baselines_alfworld_qwen25_15b_paper/ppo_eval150_unseen134_tmux/logs/eval.tmux.log",
+      "exists": true,
+      "bytes": 72367,
+      "finished_status": 0,
+      "last_metrics": {
+        "step": 150,
+        "val/text/test_score": 2.335,
+        "val/text/tool_call_count/mean": 0.0,
+        "val/success_rate": 0.455,
+        "val/pick_two_obj_and_place_success_rate": 0.462,
+        "val/pick_and_place_success_rate": 0.45,
+        "val/look_at_obj_in_light_success_rate": 0.385,
+        "val/pick_cool_then_place_in_recep_success_rate": 0.542,
+        "val/pick_heat_then_place_in_recep_success_rate": 0.483,
+        "val/pick_clean_then_place_in_recep_success_rate": 0.4
+      },
+      "num_metric_lines": 1
+    }
+  ],
+  "sample_records": [
+    {
+      "split": "valid_seen",
+      "task_type": "pick_cool_then_place_in_recep",
+      "task_dir": "pick_cool_then_place_in_recep-AppleSliced-None-GarbageCan-25",
+      "traj_path": "/home/dataset-local/cjj/RL/alfworld_data/json_2.1.1/valid_seen/pick_cool_then_place_in_recep-AppleSliced-None-GarbageCan-25/trial_T20190908_193525_796595/traj_data.json",
+      "goal": "Place a chilled apple section into the bin.",
+      "expert_actions": [
+        "gotolocation|countertop",
+        "pickupobject|knife",
+        "gotolocation|apple",
+        "sliceobject|apple",
+        "gotolocation|fridge",
+        "putobject|knife fridge",
+        "gotolocation|sinkbasin",
+        "pickupobject|apple",
+        "gotolocation|fridge",
+        "coolobject|apple",
+        "gotolocation|garbagecan",
+        "putobject|apple garbagecan"
+      ],
+      "low_actions": [
+        "lookdown",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "pickupobject",
+        "rotateleft",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "lookdown",
+        "sliceobject",
+        "lookup",
+        "rotateright",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "lookdown",
+        "openobject",
+        "putobject",
+        "closeobject",
+        "lookup",
+        "rotateleft",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "lookdown",
+        "pickupobject",
+        "lookup",
+        "rotateright",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "lookdown",
+        "openobject",
+        "putobject",
+        "closeobject",
+        "openobject",
+        "pickupobject",
+        "closeobject",
+        "lookup",
+        "rotateright",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "lookdown",
+        "putobject"
+      ]
+    },
+    {
+      "split": "valid_seen",
+      "task_type": "pick_two_obj_and_place",
+      "task_dir": "pick_two_obj_and_place-ToiletPaper-None-Toilet-408",
+      "traj_path": "/home/dataset-local/cjj/RL/alfworld_data/json_2.1.1/valid_seen/pick_two_obj_and_place-ToiletPaper-None-Toilet-408/trial_T20190909_080302_174780/traj_data.json",
+      "goal": "Put two rolls of toilet paper on the back of a toilet.",
+      "expert_actions": [
+        "gotolocation|toiletpaperhanger",
+        "pickupobject|toiletpaper",
+        "gotolocation|toilet",
+        "putobject|toiletpaper toilet",
+        "gotolocation|cabinet",
+        "pickupobject|toiletpaper",
+        "gotolocation|toilet",
+        "putobject|toiletpaper toilet",
+        "noop"
+      ],
+      "low_actions": [
+        "lookdown",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "pickupobject",
+        "rotateleft",
+        "rotateleft",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "lookup",
+        "lookup",
+        "putobject",
+        "lookdown",
+        "lookdown",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "lookdown",
+        "openobject",
+        "pickupobject",
+        "closeobject",
+        "lookup",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "lookup",
+        "lookup",
+        "putobject"
+      ]
+    },
+    {
+      "split": "valid_seen",
+      "task_type": "pick_heat_then_place_in_recep",
+      "task_dir": "pick_heat_then_place_in_recep-Mug-None-Cabinet-3",
+      "traj_path": "/home/dataset-local/cjj/RL/alfworld_data/json_2.1.1/valid_seen/pick_heat_then_place_in_recep-Mug-None-Cabinet-3/trial_T20190909_014639_335717/traj_data.json",
+      "goal": "Move mug from coffee maker to microwave and heat, move to cabinet.",
+      "expert_actions": [
+        "gotolocation|coffeemachine",
+        "pickupobject|mug",
+        "gotolocation|microwave",
+        "heatobject|mug",
+        "gotolocation|cabinet",
+        "putobject|mug cabinet",
+        "noop"
+      ],
+      "low_actions": [
+        "lookdown",
+        "rotateright",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "lookup",
+        "pickupobject",
+        "lookdown",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "lookup",
+        "openobject",
+        "putobject",
+        "closeobject",
+        "toggleobjecton",
+        "toggleobjectoff",
+        "openobject",
+        "pickupobject",
+        "closeobject",
+        "lookdown",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "openobject",
+        "putobject",
+        "closeobject"
+      ]
+    },
+    {
+      "split": "valid_seen",
+      "task_type": "pick_and_place_simple",
+      "task_dir": "pick_and_place_simple-Candle-None-Toilet-429",
+      "traj_path": "/home/dataset-local/cjj/RL/alfworld_data/json_2.1.1/valid_seen/pick_and_place_simple-Candle-None-Toilet-429/trial_T20190908_052232_887934/traj_data.json",
+      "goal": "Put a bottle on the back of a newspaper.",
+      "expert_actions": [
+        "gotolocation|shelf",
+        "pickupobject|candle",
+        "gotolocation|toilet",
+        "putobject|candle toilet",
+        "noop"
+      ],
+      "low_actions": [
+        "lookdown",
+        "rotateleft",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "pickupobject",
+        "rotateright",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "lookup",
+        "lookup",
+        "putobject"
+      ]
+    },
+    {
+      "split": "valid_seen",
+      "task_type": "look_at_obj_in_light",
+      "task_dir": "look_at_obj_in_light-BaseballBat-None-DeskLamp-303",
+      "traj_path": "/home/dataset-local/cjj/RL/alfworld_data/json_2.1.1/valid_seen/look_at_obj_in_light-BaseballBat-None-DeskLamp-303/trial_T20190907_060414_846460/traj_data.json",
+      "goal": "Examine the baseball bat under the light of the table lamp",
+      "expert_actions": [
+        "gotolocation|baseballbat",
+        "pickupobject|baseballbat",
+        "gotolocation|desklamp",
+        "toggleobject|desklamp",
+        "noop"
+      ],
+      "low_actions": [
+        "lookdown",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "rotateleft",
+        "moveahead",
+        "moveahead",
+        "lookdown",
+        "pickupobject",
+        "lookup",
+        "rotateleft",
+        "rotateleft",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "moveahead",
+        "rotateright",
+        "moveahead",
+        "lookdown",
+        "toggleobjecton"
+      ]
+    }
+  ]
+}

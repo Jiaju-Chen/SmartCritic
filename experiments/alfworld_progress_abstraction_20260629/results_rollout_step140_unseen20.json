@@ -1,0 +1,306 @@
+{
+  "num_steps": 241,
+  "num_trajectories": 20,
+  "success_rate": 0.9,
+  "steps": {
+    "mean": 12.05,
+    "median": 8.0,
+    "p90": 20.300000000000047,
+    "success_mean": 7.833333333333333,
+    "fail_mean": 50
+  },
+  "group_density": {
+    "raw_obs": {
+      "items": 241,
+      "unique_groups": 149,
+      "compression": 1.6174496644295302,
+      "repeated_item_fraction": 0.4730290456431535,
+      "mean_group_size": 1.6174496644295302,
+      "max_group_size": 12
+    },
+    "raw_obs_plus_action": {
+      "items": 241,
+      "unique_groups": 168,
+      "compression": 1.4345238095238095,
+      "repeated_item_fraction": 0.4190871369294606,
+      "mean_group_size": 1.4345238095238095,
+      "max_group_size": 8
+    },
+    "progress": {
+      "items": 241,
+      "unique_groups": 80,
+      "compression": 3.0125,
+      "repeated_item_fraction": 0.8381742738589212,
+      "mean_group_size": 3.0125,
+      "max_group_size": 18
+    },
+    "progress_plus_action_schema": {
+      "items": 241,
+      "unique_groups": 94,
+      "compression": 2.5638297872340425,
+      "repeated_item_fraction": 0.7510373443983402,
+      "mean_group_size": 2.5638297872340425,
+      "max_group_size": 18
+    },
+    "progress_plus_action_semantic": {
+      "items": 241,
+      "unique_groups": 138,
+      "compression": 1.7463768115942029,
+      "repeated_item_fraction": 0.5809128630705395,
+      "mean_group_size": 1.7463768115942029,
+      "max_group_size": 17
+    }
+  },
+  "action_ops": {
+    "go": 180,
+    "take": 20,
+    "move": 18,
+    "open": 7,
+    "cool": 5,
+    "use": 3,
+    "heat": 3,
+    "clean": 3,
+    "examine": 2
+  },
+  "redundant_go_fraction": 0.6777777777777778,
+  "invalid_action_fraction": 0.0,
+  "by_task": {
+    "look_at_obj_in_light": {
+      "n": 1,
+      "success_rate": 1.0,
+      "mean_steps": 8
+    },
+    "pick_and_place": {
+      "n": 5,
+      "success_rate": 1.0,
+      "mean_steps": 5.8
+    },
+    "pick_clean_then_place_in_recep": {
+      "n": 3,
+      "success_rate": 1.0,
+      "mean_steps": 8
+    },
+    "pick_cool_then_place_in_recep": {
+      "n": 5,
+      "success_rate": 1.0,
+      "mean_steps": 7.2
+    },
+    "pick_heat_then_place_in_recep": {
+      "n": 4,
+      "success_rate": 0.5,
+      "mean_steps": 28.5
+    },
+    "pick_two_obj_and_place": {
+      "n": 1,
+      "success_rate": 1.0,
+      "mean_steps": 13
+    },
+    "unknown": {
+      "n": 1,
+      "success_rate": 1.0,
+      "mean_steps": 17
+    }
+  },
+  "trajectory_summaries": [
+    {
+      "traj_uid": "d2699060-501a-4ec2-9b09-50bfd229a61c",
+      "task_type": "pick_two_obj_and_place",
+      "goal": "find two peppershaker and put them in drawer",
+      "steps": 13,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 13,
+      "unique_progress": 10
+    },
+    {
+      "traj_uid": "ba1816a9-5c80-48c2-b3a9-27314db39191",
+      "task_type": "pick_and_place",
+      "goal": "put a mug in desk",
+      "steps": 9,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 8
+    },
+    {
+      "traj_uid": "634eaec6-3efb-44b3-8280-50e2b26657ce",
+      "task_type": "look_at_obj_in_light",
+      "goal": "look at mug under the desklamp",
+      "steps": 8,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "1971ca3c-e46e-49e7-8e18-c7ac7b446e9f",
+      "task_type": "pick_cool_then_place_in_recep",
+      "goal": "put a cool pan in countertop",
+      "steps": 6,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 6,
+      "unique_progress": 5
+    },
+    {
+      "traj_uid": "9e124951-e44f-4080-80e7-c1339f5bc2aa",
+      "task_type": "pick_heat_then_place_in_recep",
+      "goal": "heat some mug and put it in cabinet",
+      "steps": 50,
+      "episode_reward": 0.0,
+      "success": false,
+      "unique_raw_obs": 11,
+      "unique_progress": 16
+    },
+    {
+      "traj_uid": "3bbb852f-dff6-4926-a15b-d0130735583d",
+      "task_type": "pick_cool_then_place_in_recep",
+      "goal": "cool some pan and put it in countertop",
+      "steps": 9,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 9,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "ce2abb60-f58c-41ba-b978-37db2d31f1a1",
+      "task_type": "pick_cool_then_place_in_recep",
+      "goal": "cool some potato and put it in microwave",
+      "steps": 8,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 8
+    },
+    {
+      "traj_uid": "fb9f6e9e-e8df-4d7b-a3b8-e0390d1ee7db",
+      "task_type": "pick_heat_then_place_in_recep",
+      "goal": "heat some potato and put it in garbagecan",
+      "steps": 6,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 6,
+      "unique_progress": 6
+    },
+    {
+      "traj_uid": "4656338f-6bcc-466e-b61c-c50432d5e527",
+      "task_type": "pick_heat_then_place_in_recep",
+      "goal": "heat some apple and put it in fridge",
+      "steps": 50,
+      "episode_reward": 0.0,
+      "success": false,
+      "unique_raw_obs": 10,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "5775d07e-75e3-42fd-9f74-a39185240f6a",
+      "task_type": "pick_and_place",
+      "goal": "put a hot mug in coffeemachine",
+      "steps": 8,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "e432408d-ff78-4c54-9ea0-d3ee65eb5f01",
+      "task_type": "pick_clean_then_place_in_recep",
+      "goal": "put a clean egg in microwave",
+      "steps": 9,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 9,
+      "unique_progress": 8
+    },
+    {
+      "traj_uid": "959c45c7-70c0-436f-bcec-08bd0d8a5674",
+      "task_type": "unknown",
+      "goal": "examine the pencil with the desklamp",
+      "steps": 17,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 17,
+      "unique_progress": 13
+    },
+    {
+      "traj_uid": "9e0f0ad0-68d1-4333-825d-89345d4ba946",
+      "task_type": "pick_and_place",
+      "goal": "put a pencil in shelf",
+      "steps": 4,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 4,
+      "unique_progress": 4
+    },
+    {
+      "traj_uid": "40753fcb-1dfb-4acb-b5aa-a08e33fb096d",
+      "task_type": "pick_cool_then_place_in_recep",
+      "goal": "put a cool tomato in microwave",
+      "steps": 7,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 7,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "b7f2f258-d576-4e4d-a886-9870907e3cca",
+      "task_type": "pick_clean_then_place_in_recep",
+      "goal": "put a clean plate in countertop",
+      "steps": 7,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 7,
+      "unique_progress": 6
+    },
+    {
+      "traj_uid": "92176a02-7c34-4718-97dc-9f1ad8c9f138",
+      "task_type": "pick_and_place",
+      "goal": "put a soapbottle in toilet",
+      "steps": 4,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 4,
+      "unique_progress": 4
+    },
+    {
+      "traj_uid": "ebae0926-6bc7-4626-9661-becd5302b532",
+      "task_type": "pick_clean_then_place_in_recep",
+      "goal": "clean some spatula and put it in drawer",
+      "steps": 8,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 8
+    },
+    {
+      "traj_uid": "c2819141-3264-4d83-9c59-a2df35e8e9c9",
+      "task_type": "pick_cool_then_place_in_recep",
+      "goal": "put a cool pan in countertop",
+      "steps": 6,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 6,
+      "unique_progress": 5
+    },
+    {
+      "traj_uid": "6e89d4f8-7e0a-43b2-ad8d-1afa4592e4b3",
+      "task_type": "pick_heat_then_place_in_recep",
+      "goal": "heat some tomato and put it in garbagecan",
+      "steps": 8,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 8,
+      "unique_progress": 7
+    },
+    {
+      "traj_uid": "eebd4447-3c0f-482f-9ad9-1ff3f6285f9c",
+      "task_type": "pick_and_place",
+      "goal": "put a pencil in shelf",
+      "steps": 4,
+      "episode_reward": 10.0,
+      "success": true,
+      "unique_raw_obs": 4,
+      "unique_progress": 4
+    }
+  ]
+}
