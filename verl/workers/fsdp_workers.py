@@ -852,7 +852,7 @@ class CriticWorker(Worker):
         from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
         from torch.distributed.fsdp import MixedPrecision
 
-        from verl.utils.model import print_model_size
+        from verl.utils.model import print_model_size, update_model_config
         from verl.utils.torch_dtypes import PrecisionType
 
         use_shm = config.model.get('use_shm', False)
@@ -873,8 +873,6 @@ class CriticWorker(Worker):
             "pad_token_id": self.tokenizer.pad_token_id,
         }
         override_config_kwargs.update(override_config)
-        if self.rank == 0:
-            print(f"Critic overriding config {override_config_kwargs}")
 
         torch_dtype = self.config.model.fsdp_config.get("model_dtype", "fp32")
         torch_dtype = PrecisionType.to_dtype(torch_dtype)
@@ -883,7 +881,14 @@ class CriticWorker(Worker):
 
         attn_implementation = "flash_attention_2" if config.model.get("use_remove_padding", False) else "sdpa"
         critic_model_config = AutoConfig.from_pretrained(local_path, attn_implementation=attn_implementation, trust_remote_code=config.model.get("trust_remote_code", False))
+        update_model_config(critic_model_config, override_config_kwargs=override_config_kwargs)
         critic_model_config.num_labels = 1
+        if self.rank == 0:
+            print(
+                "Critic model config after override: "
+                f"num_hidden_layers={getattr(critic_model_config, 'num_hidden_layers', None)}, "
+                f"num_labels={critic_model_config.num_labels}, overrides={override_config_kwargs}"
+            )
         # patch for kimi-vl
         if getattr(critic_model_config, "model_type", None) == "kimi_vl":
             critic_model_config.text_config.topk_method = "greedy"
