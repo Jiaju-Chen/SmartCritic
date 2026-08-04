@@ -30,6 +30,10 @@ export WANDB_MODE=${WANDB_MODE:-online}
 export WANDB_DIR=$RUN_DIR/wandb
 export WANDB_RUN_ID=${WANDB_RUN_ID:-sao2lppo0804}
 export WANDB_RESUME=${WANDB_RESUME:-allow}
+# The server's inherited proxy points to a local port that is not running.
+# W&B must use the server's direct network path for online logging.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export WANDB_HTTP_TIMEOUT=${WANDB_HTTP_TIMEOUT:-30}
 export VLLM_ATTENTION_BACKEND=${VLLM_ATTENTION_BACKEND:-XFORMERS}
 export HYDRA_FULL_ERROR=1
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
