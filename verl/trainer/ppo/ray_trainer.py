@@ -95,6 +95,7 @@ class AdvantageEstimator(str, Enum):
     GRPO_PASSK = "grpo_passk"
     GiGPO = 'gigpo'
     PROGRESS_VALUE = "progress_value"
+    SAO_SKIP_OBSERVATION = "sao_skip_observation"
 
 
 @dataclass
@@ -281,6 +282,18 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
                 kwargs.get("pf_ppo_reweight_method", "pow"),
                 kwargs.get("pf_ppo_weight_pow", 2.0),
             )
+    elif adv_estimator == AdvantageEstimator.SAO_SKIP_OBSERVATION:
+        advantages, returns = core_algos.compute_sao_skip_observation_gae(
+            token_level_rewards=data.batch["token_level_rewards"],
+            values=data.batch["values"],
+            response_mask=data.batch["response_mask"],
+            traj_index=data.non_tensor_batch["traj_uid"],
+            step_id=data.non_tensor_batch["step_id"],
+            gamma=gamma,
+            lam=lam,
+        )
+        data.batch["advantages"] = advantages
+        data.batch["returns"] = returns
     elif adv_estimator == AdvantageEstimator.GRPO:
         # TODO: test on more adv estimator type
         grpo_calculation_mask = data.batch["response_mask"]
@@ -464,7 +477,10 @@ class RayPPOTrainer:
         if config.algorithm.use_kl_in_reward:
             self.kl_ctrl_in_reward = core_algos.get_kl_controller(config.algorithm.kl_ctrl)
 
-        if self.config.algorithm.adv_estimator == AdvantageEstimator.GAE:
+        if self.config.algorithm.adv_estimator in [
+            AdvantageEstimator.GAE,
+            AdvantageEstimator.SAO_SKIP_OBSERVATION,
+        ]:
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
             AdvantageEstimator.GRPO,

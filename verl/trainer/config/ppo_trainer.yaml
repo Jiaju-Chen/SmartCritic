@@ -223,6 +223,7 @@ reward_model:
   use_dynamic_bsz: ${critic.use_dynamic_bsz}
   forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}
   reward_manager: episode
+  use_step_rewards: False # use per-action environment rewards for trajectory-level GAE
   launch_reward_fn_async: False # custom reward function executed async on CPU, during log_prob
   sandbox_fusion:
     url: null # faas url to run code in cloud sandbox

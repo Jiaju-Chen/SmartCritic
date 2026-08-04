@@ -21,10 +21,11 @@ class EpisodeRewardManager:
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, normalize_by_length=False) -> None:
+    def __init__(self, tokenizer, num_examine, normalize_by_length=False, use_step_rewards=False) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.normalize_by_length = normalize_by_length
+        self.use_step_rewards = use_step_rewards
 
     def __call__(self, data: DataProto, return_dict=False):
         """We will expand this function gradually based on the available datasets"""
@@ -72,7 +73,16 @@ class EpisodeRewardManager:
             episode_rewards = data_item.non_tensor_batch['episode_rewards']
             episode_lengths = data_item.non_tensor_batch['episode_lengths']
 
-            if self.normalize_by_length:
+            if self.use_step_rewards:
+                # For trajectory-level GAE, use the environment reward emitted
+                # by this action. The old PPO reward manager copied the final
+                # episode reward into every action, which would double-count a
+                # terminal reward once actions are connected across turns.
+                step_rewards = data_item.non_tensor_batch.get('rewards', None)
+                if step_rewards is None:
+                    raise KeyError("use_step_rewards=True requires per-action 'rewards' from the rollout")
+                score = float(np.asarray(step_rewards).reshape(-1)[0])
+            elif self.normalize_by_length:
                 score = episode_rewards / episode_lengths
             else:
                 score = episode_rewards

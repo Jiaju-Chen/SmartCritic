@@ -109,6 +109,85 @@ def compute_gae_advantage_return(
     return advantages, returns
 
 
+def compute_sao_skip_observation_gae(
+    token_level_rewards: torch.Tensor,
+    values: torch.Tensor,
+    response_mask: torch.Tensor,
+    traj_index: np.ndarray,
+    step_id: np.ndarray,
+    gamma: torch.Tensor,
+    lam: torch.Tensor,
+):
+    """Compute token-level GAE while skipping environment observations.
+
+    Each batch row is one model-generated environment action. Rows belonging to
+    the same trajectory are ordered by ``step_id`` and connected at the action
+    boundary: the last valid token of action ``t`` bootstraps from the first
+    valid token of action ``t + 1``. Environment observations are not model
+    actions and therefore do not enter the GAE recursion or policy mask.
+
+    This is the credit-assignment part of SAO only. It intentionally does not
+    implement SAO's asynchronous rollout, rollout-policy importance ratio, or
+    value-update schedule.
+    """
+    if token_level_rewards.shape != values.shape or values.shape != response_mask.shape:
+        raise ValueError(
+            "SAO skip-observation GAE expects rewards, values, and response_mask "
+            f"to have the same shape; got {token_level_rewards.shape}, "
+            f"{values.shape}, {response_mask.shape}"
+        )
+
+    with torch.no_grad():
+        batch_size, response_length = token_level_rewards.shape
+        if len(traj_index) != batch_size or len(step_id) != batch_size:
+            raise ValueError(
+                "SAO skip-observation GAE expects traj_index and step_id to "
+                f"match batch size {batch_size}; got {len(traj_index)} and {len(step_id)}"
+            )
+
+        # Keep the original batch layout for the actor/critic workers. Only the
+        # recurrence order changes, so all metadata remains aligned.
+        trajectories = defaultdict(list)
+        for row in range(batch_size):
+            trajectories[traj_index[row]].append(row)
+
+        advantages = torch.zeros_like(values)
+        gamma_value = float(gamma)
+        lam_value = float(lam)
+
+        for rows in trajectories.values():
+            rows.sort(key=lambda row: int(step_id[row]))
+            next_action_first_value = 0.0
+            next_gae = 0.0
+
+            for row in reversed(rows):
+                valid_positions = torch.nonzero(response_mask[row] > 0, as_tuple=False).flatten().tolist()
+                if not valid_positions:
+                    continue
+
+                # Reverse through only generated action tokens. The boundary
+                # value from the next action is carried into this action's last
+                # token, which is the explicit observation skip.
+                for position_index in range(len(valid_positions) - 1, -1, -1):
+                    position = valid_positions[position_index]
+                    is_action_end = position_index == len(valid_positions) - 1
+                    if is_action_end:
+                        next_value = next_action_first_value
+                    else:
+                        next_position = valid_positions[position_index + 1]
+                        next_value = values[row, next_position]
+
+                    delta = token_level_rewards[row, position] + gamma_value * next_value - values[row, position]
+                    next_gae = delta + gamma_value * lam_value * next_gae
+                    advantages[row, position] = next_gae
+
+                next_action_first_value = values[row, valid_positions[0]]
+
+        returns = advantages + values
+        advantages = verl_F.masked_whiten(advantages, response_mask)
+    return advantages, returns
+
+
 # NOTE(sgm): this implementation only consider outcome supervision, where the reward is a scalar.
 def compute_grpo_outcome_advantage(
     token_level_rewards: torch.Tensor,
