@@ -117,6 +117,7 @@ def compute_sao_skip_observation_gae(
     step_id: np.ndarray,
     gamma: torch.Tensor,
     lam: torch.Tensor,
+    whiten_advantages: bool = True,
 ):
     """Compute token-level GAE while skipping environment observations.
 
@@ -184,8 +185,117 @@ def compute_sao_skip_observation_gae(
                 next_action_first_value = values[row, valid_positions[0]]
 
         returns = advantages + values
-        advantages = verl_F.masked_whiten(advantages, response_mask)
+        if whiten_advantages:
+            advantages = verl_F.masked_whiten(advantages, response_mask)
     return advantages, returns
+
+
+def compute_dual_critic_hybrid_gae(
+    token_level_rewards: torch.Tensor,
+    token_values: torch.Tensor,
+    turn_values: torch.Tensor,
+    response_mask: torch.Tensor,
+    traj_index: np.ndarray,
+    step_id: np.ndarray,
+    token_gamma: float,
+    token_lam: float,
+    turn_gamma: float,
+    turn_lam: float,
+    token_residual_scale: float = 1.0,
+    whiten_advantages: bool = True,
+):
+    """Combine skip-observation token credit with a separate turn critic.
+
+    The token critic supplies within-turn residual credit. The turn critic is
+    evaluated at the first generated-token position, whose hidden state is
+    aligned with the observation boundary immediately before the action. The
+    resulting actor advantage has the turn advantage as its within-turn mean,
+    while retaining differences among tokens inside the action.
+    """
+    shapes = {
+        token_level_rewards.shape,
+        token_values.shape,
+        turn_values.shape,
+        response_mask.shape,
+    }
+    if len(shapes) != 1:
+        raise ValueError(
+            "Dual-critic hybrid GAE expects rewards, token values, turn values, "
+            "and response mask to have the same shape"
+        )
+
+    token_advantages, token_returns = compute_sao_skip_observation_gae(
+        token_level_rewards=token_level_rewards,
+        values=token_values,
+        response_mask=response_mask,
+        traj_index=traj_index,
+        step_id=step_id,
+        gamma=token_gamma,
+        lam=token_lam,
+        whiten_advantages=False,
+    )
+
+    with torch.no_grad():
+        batch_size = token_level_rewards.shape[0]
+        if len(traj_index) != batch_size or len(step_id) != batch_size:
+            raise ValueError(
+                "Dual-critic hybrid GAE expects traj_index and step_id to "
+                f"match batch size {batch_size}; got {len(traj_index)} and {len(step_id)}"
+            )
+
+        trajectories = defaultdict(list)
+        valid_positions_by_row = {}
+        for row in range(batch_size):
+            trajectories[traj_index[row]].append(row)
+            valid_positions_by_row[row] = torch.nonzero(
+                response_mask[row] > 0, as_tuple=False
+            ).flatten()
+
+        turn_advantages = torch.zeros_like(token_level_rewards)
+        turn_returns = torch.zeros_like(token_level_rewards)
+        turn_value_mask = torch.zeros_like(response_mask, dtype=token_level_rewards.dtype)
+
+        for rows in trajectories.values():
+            rows.sort(key=lambda row: int(step_id[row]))
+            next_turn_value = 0.0
+            next_turn_gae = 0.0
+
+            for row in reversed(rows):
+                valid_positions = valid_positions_by_row[row]
+                if valid_positions.numel() == 0:
+                    continue
+
+                boundary_position = int(valid_positions[0])
+                current_turn_value = turn_values[row, boundary_position]
+                turn_reward = token_level_rewards[row, valid_positions].sum()
+                delta = turn_reward + float(turn_gamma) * next_turn_value - current_turn_value
+                next_turn_gae = delta + float(turn_gamma) * float(turn_lam) * next_turn_gae
+
+                turn_advantages[row, valid_positions] = next_turn_gae
+                turn_returns[row, boundary_position] = next_turn_gae + current_turn_value
+                turn_value_mask[row, boundary_position] = 1
+                next_turn_value = current_turn_value
+
+        token_residuals = torch.zeros_like(token_advantages)
+        for row in range(batch_size):
+            valid_positions = valid_positions_by_row[row]
+            if valid_positions.numel() == 0:
+                continue
+            row_advantages = token_advantages[row, valid_positions]
+            token_residuals[row, valid_positions] = row_advantages - row_advantages.mean()
+
+        hybrid_advantages = turn_advantages + float(token_residual_scale) * token_residuals
+        if whiten_advantages:
+            hybrid_advantages = verl_F.masked_whiten(hybrid_advantages, response_mask)
+
+    return (
+        hybrid_advantages,
+        token_returns,
+        turn_returns,
+        turn_value_mask,
+        turn_advantages,
+        token_residuals,
+    )
 
 
 # NOTE(sgm): this implementation only consider outcome supervision, where the reward is a scalar.

@@ -112,6 +112,12 @@ class TaskRunner:
             Role.Critic: ray.remote(CriticWorker),
         }
 
+        use_turn_critic = config.algorithm.adv_estimator == "dual_critic_hybrid"
+        if use_turn_critic:
+            if config.turn_critic.strategy not in ["fsdp", "fsdp2"]:
+                raise NotImplementedError("dual_critic_hybrid currently supports FSDP turn critics only")
+            role_worker_mapping[Role.TurnCritic] = ray.remote(CriticWorker)
+
         global_pool_id = "global_pool"
         resource_pool_spec = {
             global_pool_id: [config.trainer.n_gpus_per_node] * config.trainer.nnodes,
@@ -120,6 +126,8 @@ class TaskRunner:
             Role.ActorRollout: global_pool_id,
             Role.Critic: global_pool_id,
         }
+        if use_turn_critic:
+            mapping[Role.TurnCritic] = global_pool_id
 
         # we should adopt a multi-source reward function here
         # - for rule-based rm, we directly call a reward score

@@ -52,13 +52,28 @@ def compute_reward(info, multi_modal=False):
         reward = 10.0 * float(info['won'])
     return reward
 
+def pin_worker_to_game(base_env, game_index):
+    """Restrict one evaluation worker to one deterministic ALFWorld game."""
+    if game_index is None:
+        return None
+    if not 0 <= game_index < len(base_env.game_files):
+        raise IndexError(
+            f"ALFWorld game index {game_index} is outside [0, {len(base_env.game_files)})"
+        )
+    gamefile = base_env.game_files[game_index]
+    base_env.game_files = [gamefile]
+    base_env.num_games = 1
+    return gamefile
+
+
 class AlfworldWorker:
     """
     Ray remote actor that replaces the worker function.
     Each actor holds one environment instance.
     """
     
-    def __init__(self, config, seed, base_env):
+    def __init__(self, config, seed, base_env, game_index=None):
+        self.pinned_gamefile = pin_worker_to_game(base_env, game_index)
         self.env = base_env.init_env(batch_size=1)  # Each worker holds only one sub-environment
         self.env.seed(seed)
     
@@ -95,6 +110,7 @@ class AlfworldEnvs(gym.Env):
         env_type = config['env']['type']
         base_env = get_environment(env_type)(config, train_eval='train' if is_train else eval_dataset)
         self.multi_modal = (env_type == 'AlfredThorEnv')
+        self.is_train = is_train
         self.num_processes = env_num * group_n
         self.group_n = group_n
 
@@ -102,8 +118,20 @@ class AlfworldEnvs(gym.Env):
         env_worker = ray.remote(**resources_per_worker)(AlfworldWorker)
         self.workers = []
         for i in range(self.num_processes):
-            worker = env_worker.remote(config, seed + (i // self.group_n), base_env)
+            game_index = None if is_train else i // self.group_n
+            worker = env_worker.remote(
+                config,
+                seed + (i // self.group_n),
+                base_env,
+                game_index,
+            )
             self.workers.append(worker)
+
+        if not is_train:
+            print(
+                f"Pinned {self.num_processes} ALFWorld evaluation workers to "
+                f"{env_num} unique game indexes"
+            )
 
         self.prev_admissible_commands = [None for _ in range(self.num_processes)]
 
@@ -165,6 +193,13 @@ class AlfworldEnvs(gym.Env):
             text_obs_list.append(obs[0])
             self.prev_admissible_commands[i] = info['admissible_commands']
             info_list.append(info)
+
+        if not self.is_train:
+            gamefiles = [info.get('extra.gamefile') for info in info_list]
+            if None in gamefiles or len(set(gamefiles)) != len(gamefiles):
+                raise RuntimeError(
+                    "ALFWorld evaluation reset did not cover one unique gamefile per worker"
+                )
 
         if self.multi_modal:
             image_obs_list = self.getobs()

@@ -79,6 +79,7 @@ class Role(Enum):
     RefPolicy = 4
     RewardModel = 5
     ActorRolloutRef = 6
+    TurnCritic = 7
 
 
 class AdvantageEstimator(str, Enum):
@@ -96,6 +97,7 @@ class AdvantageEstimator(str, Enum):
     GiGPO = 'gigpo'
     PROGRESS_VALUE = "progress_value"
     SAO_SKIP_OBSERVATION = "sao_skip_observation"
+    DUAL_CRITIC_HYBRID = "dual_critic_hybrid"
 
 
 @dataclass
@@ -243,7 +245,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, **kwargs):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, hybrid_advantage_cfg=None, **kwargs):
     """Compute advantage estimates for policy optimization.
 
     This function computes advantage estimates using various estimators like GAE, GRPO, REINFORCE++, etc.
@@ -294,6 +296,28 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         )
         data.batch["advantages"] = advantages
         data.batch["returns"] = returns
+    elif adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID:
+        hybrid_advantage_cfg = hybrid_advantage_cfg or {}
+        advantages, returns, turn_returns, turn_value_mask, turn_advantages, token_residuals = core_algos.compute_dual_critic_hybrid_gae(
+            token_level_rewards=data.batch["token_level_rewards"],
+            token_values=data.batch["values"],
+            turn_values=data.batch["turn_values"],
+            response_mask=data.batch["response_mask"],
+            traj_index=data.non_tensor_batch["traj_uid"],
+            step_id=data.non_tensor_batch["step_id"],
+            token_gamma=gamma,
+            token_lam=lam,
+            turn_gamma=hybrid_advantage_cfg.get("turn_gamma", 1.0),
+            turn_lam=hybrid_advantage_cfg.get("turn_lam", 0.95),
+            token_residual_scale=hybrid_advantage_cfg.get("token_residual_scale", 1.0),
+            whiten_advantages=hybrid_advantage_cfg.get("whiten_advantages", True),
+        )
+        data.batch["advantages"] = advantages
+        data.batch["returns"] = returns
+        data.batch["turn_returns"] = turn_returns
+        data.batch["turn_value_mask"] = turn_value_mask
+        data.batch["turn_advantages"] = turn_advantages
+        data.batch["token_residuals"] = token_residuals
     elif adv_estimator == AdvantageEstimator.GRPO:
         # TODO: test on more adv estimator type
         grpo_calculation_mask = data.batch["response_mask"]
@@ -480,6 +504,7 @@ class RayPPOTrainer:
         if self.config.algorithm.adv_estimator in [
             AdvantageEstimator.GAE,
             AdvantageEstimator.SAO_SKIP_OBSERVATION,
+            AdvantageEstimator.DUAL_CRITIC_HYBRID,
         ]:
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
@@ -495,6 +520,10 @@ class RayPPOTrainer:
             self.use_critic = False
         else:
             raise NotImplementedError
+
+        self.use_turn_critic = self.config.algorithm.adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID
+        if self.use_turn_critic and Role.TurnCritic not in role_worker_mapping:
+            raise ValueError("dual_critic_hybrid requires a TurnCritic worker")
 
         self._validate_config()
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
@@ -556,6 +585,13 @@ class RayPPOTrainer:
             # Check for critic micro-batch size conflicts
             check_mutually_exclusive(config.critic.ppo_micro_batch_size, config.critic.ppo_micro_batch_size_per_gpu, "critic")
 
+        if self.use_turn_critic and not config.turn_critic.use_dynamic_bsz:
+            check_mutually_exclusive(
+                config.turn_critic.ppo_micro_batch_size,
+                config.turn_critic.ppo_micro_batch_size_per_gpu,
+                "critic",
+            )
+
         # Check for reward model micro-batch size conflicts
         if config.reward_model.enable and not config.reward_model.use_dynamic_bsz:
             check_mutually_exclusive(config.reward_model.micro_batch_size, config.reward_model.micro_batch_size_per_gpu, "reward_model")
@@ -590,6 +626,12 @@ class RayPPOTrainer:
                 assert config.critic.ppo_mini_batch_size % config.critic.ppo_micro_batch_size == 0
                 assert config.critic.ppo_micro_batch_size * sp_size >= n_gpus
 
+        if self.use_turn_critic and not config.turn_critic.use_dynamic_bsz:
+            sp_size = config.turn_critic.get("ulysses_sequence_parallel_size", 1)
+            if config.turn_critic.ppo_micro_batch_size is not None:
+                assert config.turn_critic.ppo_mini_batch_size % config.turn_critic.ppo_micro_batch_size == 0
+                assert config.turn_critic.ppo_micro_batch_size * sp_size >= n_gpus
+
         # Check if use_remove_padding is enabled when using sequence parallelism for fsdp
         if config.actor_rollout_ref.actor.strategy == "fsdp" and (config.actor_rollout_ref.actor.get("ulysses_sequence_parallel_size", 1) > 1 or config.actor_rollout_ref.ref.get("ulysses_sequence_parallel_size", 1) > 1):
             assert config.actor_rollout_ref.model.use_remove_padding, "When using sequence parallelism for actor/ref policy, you must enable `use_remove_padding`."
@@ -597,6 +639,10 @@ class RayPPOTrainer:
         if self.use_critic and config.critic.strategy == "fsdp":
             if config.critic.get("ulysses_sequence_parallel_size", 1) > 1:
                 assert config.critic.model.use_remove_padding, "When using sequence parallelism for critic, you must enable `use_remove_padding`."
+
+        if self.use_turn_critic and config.turn_critic.strategy == "fsdp":
+            if config.turn_critic.get("ulysses_sequence_parallel_size", 1) > 1:
+                assert config.turn_critic.model.use_remove_padding, "When using sequence parallelism for turn critic, you must enable `use_remove_padding`."
 
         if config.data.get("val_batch_size", None) is not None:
             print("WARNING: val_batch_size is deprecated." + " Validation datasets are sent to inference engines as a whole batch," + " which will schedule the memory themselves.")
@@ -674,6 +720,8 @@ class RayPPOTrainer:
                     self.config.actor_rollout_ref.actor.optim.total_training_steps = total_training_steps
                 if OmegaConf.select(self.config, "critic.optim"):
                     self.config.critic.optim.total_training_steps = total_training_steps
+                if self.use_turn_critic and OmegaConf.select(self.config, "turn_critic.optim"):
+                    self.config.turn_critic.optim.total_training_steps = total_training_steps
         except Exception as e:
             print(f"Warning: Could not set total_training_steps in config. Structure missing? Error: {e}")
 
@@ -893,6 +941,14 @@ class RayPPOTrainer:
             critic_cls = RayClassWithInitArgs(cls=self.role_worker_mapping[Role.Critic], config=self.config.critic)
             self.resource_pool_to_cls[resource_pool]["critic"] = critic_cls
 
+        if self.use_turn_critic:
+            resource_pool = self.resource_pool_manager.get_resource_pool(Role.TurnCritic)
+            turn_critic_cls = RayClassWithInitArgs(
+                cls=self.role_worker_mapping[Role.TurnCritic],
+                config=self.config.turn_critic,
+            )
+            self.resource_pool_to_cls[resource_pool]["turn_critic"] = turn_critic_cls
+
         # create reference policy if needed
         if self.use_reference_policy:
             resource_pool = self.resource_pool_manager.get_resource_pool(Role.RefPolicy)
@@ -926,6 +982,10 @@ class RayPPOTrainer:
             self.critic_wg = all_wg["critic"]
             self.critic_wg.init_model()
 
+        if self.use_turn_critic:
+            self.turn_critic_wg = all_wg["turn_critic"]
+            self.turn_critic_wg.init_model()
+
         if self.use_reference_policy and not self.ref_in_actor:
             self.ref_policy_wg = all_wg["ref"]
             self.ref_policy_wg.init_model()
@@ -947,37 +1007,50 @@ class RayPPOTrainer:
                 worker_group=self.actor_rollout_wg,
             )
 
-    def _save_checkpoint(self):
+    def _save_checkpoint(self, checkpoint_slot=None):
         # path: given_path + `/global_step_{global_steps}` + `/actor`
-        local_global_step_folder = os.path.join(self.config.trainer.default_local_dir, f"global_step_{self.global_steps}")
+        folder_name = checkpoint_slot or f"global_step_{self.global_steps}"
+        local_global_step_folder = os.path.join(self.config.trainer.default_local_dir, folder_name)
 
         print(f"local_global_step_folder: {local_global_step_folder}")
         actor_local_path = os.path.join(local_global_step_folder, "actor")
 
-        actor_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, f"global_step_{self.global_steps}", "actor")
+        actor_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, folder_name, "actor")
 
         remove_previous_ckpt_in_save = self.config.trainer.get("remove_previous_ckpt_in_save", False)
         if remove_previous_ckpt_in_save:
             print("Warning: remove_previous_ckpt_in_save is deprecated," + " set max_actor_ckpt_to_keep=1 and max_critic_ckpt_to_keep=1 instead")
         max_actor_ckpt_to_keep = self.config.trainer.get("max_actor_ckpt_to_keep", None) if not remove_previous_ckpt_in_save else 1
         max_critic_ckpt_to_keep = self.config.trainer.get("max_critic_ckpt_to_keep", None) if not remove_previous_ckpt_in_save else 1
+        max_turn_critic_ckpt_to_keep = self.config.trainer.get("max_turn_critic_ckpt_to_keep", None) if not remove_previous_ckpt_in_save else 1
 
         self.actor_rollout_wg.save_checkpoint(actor_local_path, actor_remote_path, self.global_steps, max_ckpt_to_keep=max_actor_ckpt_to_keep)
 
         if self.use_critic:
             critic_local_path = os.path.join(local_global_step_folder, "critic")
-            critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, f"global_step_{self.global_steps}", "critic")
+            critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, folder_name, "critic")
             self.critic_wg.save_checkpoint(critic_local_path, critic_remote_path, self.global_steps, max_ckpt_to_keep=max_critic_ckpt_to_keep)
+
+        if self.use_turn_critic:
+            turn_critic_local_path = os.path.join(local_global_step_folder, "turn_critic")
+            turn_critic_remote_path = None if self.config.trainer.default_hdfs_dir is None else os.path.join(self.config.trainer.default_hdfs_dir, folder_name, "turn_critic")
+            self.turn_critic_wg.save_checkpoint(
+                turn_critic_local_path,
+                turn_critic_remote_path,
+                self.global_steps,
+                max_ckpt_to_keep=max_turn_critic_ckpt_to_keep,
+            )
 
         # save dataloader
         dataloader_local_path = os.path.join(local_global_step_folder, "data.pt")
         dataloader_state_dict = self.train_dataloader.state_dict()
         torch.save(dataloader_state_dict, dataloader_local_path)
 
-        # latest checkpointed iteration tracker (for atomic usage)
-        local_latest_checkpointed_iteration = os.path.join(self.config.trainer.default_local_dir, "latest_checkpointed_iteration.txt")
-        with open(local_latest_checkpointed_iteration, "w") as f:
-            f.write(str(self.global_steps))
+        if checkpoint_slot in (None, "latest"):
+            # latest checkpointed iteration tracker (for atomic usage)
+            local_latest_checkpointed_iteration = os.path.join(self.config.trainer.default_local_dir, "latest_checkpointed_iteration.txt")
+            with open(local_latest_checkpointed_iteration, "w") as f:
+                f.write(str(self.global_steps))
 
     def _load_checkpoint(self):
         if self.config.trainer.resume_mode == "disable":
@@ -991,7 +1064,12 @@ class RayPPOTrainer:
             if not os.path.isabs(checkpoint_folder):
                 working_dir = os.getcwd()
                 checkpoint_folder = os.path.join(working_dir, checkpoint_folder)
-            global_step_folder = find_latest_ckpt_path(checkpoint_folder)  # None if no latest
+            if self.config.trainer.get("checkpoint_slot_mode", "legacy") == "best_latest":
+                latest_folder = os.path.join(checkpoint_folder, "latest")
+                tracker_path = os.path.join(checkpoint_folder, "latest_checkpointed_iteration.txt")
+                global_step_folder = latest_folder if os.path.exists(tracker_path) and os.path.isdir(latest_folder) else None
+            else:
+                global_step_folder = find_latest_ckpt_path(checkpoint_folder)  # None if no latest
 
         # find global_step_folder
         if self.config.trainer.resume_mode == "auto":
@@ -1008,18 +1086,26 @@ class RayPPOTrainer:
                     global_step_folder = os.path.join(working_dir, global_step_folder)
         print(f"Load from checkpoint folder: {global_step_folder}")
         # set global step
-        self.global_steps = int(global_step_folder.split("global_step_")[-1])
+        if os.path.basename(global_step_folder) in ("latest", "best"):
+            tracker_name = "latest_checkpointed_iteration.txt" if os.path.basename(global_step_folder) == "latest" else "best_checkpointed_iteration.txt"
+            with open(os.path.join(self.config.trainer.default_local_dir, tracker_name)) as f:
+                self.global_steps = int(f.read().strip())
+        else:
+            self.global_steps = int(global_step_folder.split("global_step_")[-1])
 
         print(f"Setting global step to {self.global_steps}")
         print(f"Resuming from {global_step_folder}")
 
         actor_path = os.path.join(global_step_folder, "actor")
         critic_path = os.path.join(global_step_folder, "critic")
+        turn_critic_path = os.path.join(global_step_folder, "turn_critic")
         # load actor
         self.actor_rollout_wg.load_checkpoint(actor_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load)
         # load critic
         if self.use_critic:
             self.critic_wg.load_checkpoint(critic_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load)
+        if self.use_turn_critic:
+            self.turn_critic_wg.load_checkpoint(turn_critic_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load)
 
         # load dataloader,
         # TODO: from remote not implemented yet
@@ -1066,6 +1152,15 @@ class RayPPOTrainer:
         # load checkpoint before doing anything
         self._load_checkpoint()
 
+        best_metric_name = self.config.trainer.get("best_checkpoint_metric", "val/success_rate")
+        best_metric_value = float("-inf")
+        best_metadata_path = os.path.join(self.config.trainer.default_local_dir, "best_checkpoint_metadata.json")
+        if os.path.exists(best_metadata_path):
+            with open(best_metadata_path) as f:
+                best_metadata = json.load(f)
+            if best_metadata.get("metric_name") == best_metric_name:
+                best_metric_value = float(best_metadata["metric_value"])
+
         # perform validation before training
         # currently, we only support validation using the reward_function.
         if self.val_reward_fn is not None and self.config.trainer.get("val_before_train", True):
@@ -1087,6 +1182,7 @@ class RayPPOTrainer:
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
+                current_val_metrics = None
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
 
                 # pop those keys for generation
@@ -1228,6 +1324,11 @@ class RayPPOTrainer:
                             values = self.critic_wg.compute_values(batch)
                             batch = batch.union(values)
 
+                    if self.use_turn_critic:
+                        with _timer("turn_values", timing_raw):
+                            turn_values = self.turn_critic_wg.compute_values(batch)
+                            batch.batch["turn_values"] = turn_values.batch["values"]
+
                     with _timer("adv", timing_raw):
                         # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
@@ -1273,7 +1374,22 @@ class RayPPOTrainer:
                             gigpo_enable_similarity= self.config.algorithm.gigpo.enable_similarity,
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
                             progress_value_cfg=self.config.algorithm.get("progress_value", {}),
+                            hybrid_advantage_cfg=self.config.algorithm.get("hybrid_advantage", {}),
                         )
+
+                        if self.use_turn_critic:
+                            response_mask = batch.batch["response_mask"]
+                            turn_mask = batch.batch["turn_value_mask"]
+                            turn_advantages = batch.batch["turn_advantages"]
+                            token_residuals = batch.batch["token_residuals"]
+                            metrics.update(
+                                {
+                                    "hybrid/turn_advantage_mean": masked_mean(turn_advantages, response_mask).item(),
+                                    "hybrid/turn_advantage_rms": torch.sqrt(masked_mean(turn_advantages.square(), response_mask)).item(),
+                                    "hybrid/token_residual_rms": torch.sqrt(masked_mean(token_residuals.square(), response_mask)).item(),
+                                    "hybrid/turn_value_mean": masked_mean(batch.batch["turn_values"], turn_mask).item(),
+                                }
+                            )
 
                     # update critic
                     if self.use_critic:
@@ -1281,6 +1397,21 @@ class RayPPOTrainer:
                             critic_output = self.critic_wg.update_critic(batch)
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                         metrics.update(critic_output_metrics)
+
+                    if self.use_turn_critic:
+                        with _timer("update_turn_critic", timing_raw):
+                            turn_batch = deepcopy(batch)
+                            turn_batch.batch["values"] = batch.batch["turn_values"]
+                            turn_batch.batch["returns"] = batch.batch["turn_returns"]
+                            turn_batch.batch["value_mask"] = batch.batch["turn_value_mask"]
+                            turn_critic_output = self.turn_critic_wg.update_critic(turn_batch)
+                        turn_critic_metrics = reduce_metrics(turn_critic_output.meta_info["metrics"])
+                        metrics.update(
+                            {
+                                key.replace("critic/", "turn_critic/", 1): value
+                                for key, value in turn_critic_metrics.items()
+                            }
+                        )
 
                     # implement critic warmup
                     if self.config.trainer.critic_warmup <= self.global_steps:
@@ -1311,13 +1442,38 @@ class RayPPOTrainer:
                     if self.val_reward_fn is not None and self.config.trainer.test_freq > 0 and (is_last_step or self.global_steps % self.config.trainer.test_freq == 0):
                         with _timer("testing", timing_raw):
                             val_metrics: dict = self._validate()
+                            current_val_metrics = val_metrics
                             if is_last_step:
                                 last_val_metrics = val_metrics
                         metrics.update(val_metrics)
 
                     if self.config.trainer.save_freq > 0 and (is_last_step or self.global_steps % self.config.trainer.save_freq == 0):
                         with _timer("save_checkpoint", timing_raw):
-                            self._save_checkpoint()
+                            if self.config.trainer.get("checkpoint_slot_mode", "legacy") == "best_latest":
+                                self._save_checkpoint(checkpoint_slot="latest")
+                                if current_val_metrics is None or best_metric_name not in current_val_metrics:
+                                    raise ValueError(
+                                        "best_latest checkpointing requires validation on every save step "
+                                        f"and metric {best_metric_name!r}"
+                                    )
+                                current_metric_value = float(current_val_metrics[best_metric_name])
+                                if current_metric_value > best_metric_value:
+                                    best_metric_value = current_metric_value
+                                    self._save_checkpoint(checkpoint_slot="best")
+                                    with open(best_metadata_path, "w") as f:
+                                        json.dump(
+                                            {
+                                                "global_step": self.global_steps,
+                                                "metric_name": best_metric_name,
+                                                "metric_value": best_metric_value,
+                                            },
+                                            f,
+                                            indent=2,
+                                        )
+                                    with open(os.path.join(self.config.trainer.default_local_dir, "best_checkpointed_iteration.txt"), "w") as f:
+                                        f.write(str(self.global_steps))
+                            else:
+                                self._save_checkpoint()
 
                 # training metrics
                 metrics.update(

@@ -34,7 +34,7 @@ def test_skip_observation_does_not_cross_trajectory_boundaries():
     rewards = torch.tensor(
         [
             [0.0, 0.0],
-            [1.0, 0.0],
+            [0.0, 1.0],
             [0.0, 0.0],
         ]
     )

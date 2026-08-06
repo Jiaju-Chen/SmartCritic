@@ -181,6 +181,8 @@ class DataParallelPPOCritic(BasePPOCritic):
         metrics = {}
 
         select_keys = ["input_ids", "responses", "attention_mask", "position_ids", "values", "returns"]
+        if "value_mask" in data.batch:
+            select_keys.append("value_mask")
         batch = data.select(batch_keys=select_keys).batch
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
@@ -221,7 +223,10 @@ class DataParallelPPOCritic(BasePPOCritic):
                     returns = data["returns"]
                     response_length = responses.size(1)
 
-                    response_mask = attention_mask[:, -response_length - 1 : -1]
+                    response_mask = data.get(
+                        "value_mask",
+                        attention_mask[:, -response_length - 1 : -1],
+                    )
 
                     vpreds = self._forward_micro_batch(data)
 
