@@ -52,18 +52,15 @@ def compute_reward(info, multi_modal=False):
         reward = 10.0 * float(info['won'])
     return reward
 
-def pin_worker_to_game(base_env, game_index):
-    """Restrict one evaluation worker to one deterministic ALFWorld game."""
+def gamefile_for_index(game_files, game_index):
+    """Return one deterministic ALFWorld gamefile for evaluation."""
     if game_index is None:
         return None
-    if not 0 <= game_index < len(base_env.game_files):
+    if not 0 <= game_index < len(game_files):
         raise IndexError(
-            f"ALFWorld game index {game_index} is outside [0, {len(base_env.game_files)})"
+            f"ALFWorld game index {game_index} is outside [0, {len(game_files)})"
         )
-    gamefile = base_env.game_files[game_index]
-    base_env.game_files = [gamefile]
-    base_env.num_games = 1
-    return gamefile
+    return game_files[game_index]
 
 
 class AlfworldWorker:
@@ -73,9 +70,11 @@ class AlfworldWorker:
     """
     
     def __init__(self, config, seed, base_env, game_index=None):
-        self.pinned_gamefile = pin_worker_to_game(base_env, game_index)
-        self.env = base_env.init_env(batch_size=1)  # Each worker holds only one sub-environment
-        self.env.seed(seed)
+        self.all_game_files = list(base_env.game_files)
+        self.seed = seed
+        self.game_index = game_index
+        self.env = base_env.init_env(batch_size=1)
+        self.env.seed(self.seed)
     
     def step(self, action):
         """Execute a step in the environment"""
@@ -85,8 +84,14 @@ class AlfworldWorker:
         infos['observation_text'] = obs
         return obs, scores, dones, infos
     
-    def reset(self):
+    def reset(self, game_index=None):
         """Reset the environment"""
+        if game_index is not None:
+            self.game_index = game_index
+        if self.game_index is not None:
+            gamefile = gamefile_for_index(self.all_game_files, self.game_index)
+            self.env.gamefiles = [gamefile]
+            self.env.seed(self.seed)
         obs, infos = self.env.reset()
         infos['observation_text'] = obs
         return obs, infos
@@ -109,6 +114,7 @@ class AlfworldEnvs(gym.Env):
         config = load_config_file(alf_config_path)
         env_type = config['env']['type']
         base_env = get_environment(env_type)(config, train_eval='train' if is_train else eval_dataset)
+        self.eval_game_count = len(base_env.game_files) if not is_train else None
         self.multi_modal = (env_type == 'AlfredThorEnv')
         self.is_train = is_train
         self.num_processes = env_num * group_n
@@ -171,7 +177,7 @@ class AlfworldEnvs(gym.Env):
 
         return text_obs_list, image_obs_list, rewards_list, dones_list, info_list
 
-    def reset(self):
+    def reset(self, game_indices=None):
         """
         Send the reset command to all workers at once and collect initial obs/info from each environment.
         """
@@ -181,8 +187,13 @@ class AlfworldEnvs(gym.Env):
 
         # Send reset commands to all workers
         futures = []
-        for worker in self.workers:
-            future = worker.reset.remote()
+        if game_indices is not None and len(game_indices) != self.num_processes:
+            raise ValueError(
+                f"Expected {self.num_processes} ALFWorld game indexes, got {len(game_indices)}"
+            )
+        for i, worker in enumerate(self.workers):
+            game_index = None if game_indices is None else int(game_indices[i])
+            future = worker.reset.remote(game_index)
             futures.append(future)
 
         # Collect results

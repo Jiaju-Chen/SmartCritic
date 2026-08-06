@@ -273,6 +273,7 @@ class TrajectoryCollector:
                     # success_rate
                     for key, value in success_rate.items():
                         data[key] = value
+                    data['episode_success'] = success['success_rate'][bs]
 
                     effective_batch.append(data)
             

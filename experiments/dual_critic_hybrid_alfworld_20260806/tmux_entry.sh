@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -o pipefail
 
-RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_dualcritic_hybrid_t128_v140_8gpu_seed0_20260806}
+RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_dualcritic_hybrid_t128_v140_vb20_8gpu_seed0_20260806}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/dual_critic_hybrid_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 

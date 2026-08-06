@@ -778,6 +778,7 @@ class RayPPOTrainer:
         data_source_lst = []
         tool_calling_list = []
         traj_uid_list = []
+        episode_success_list = []
         success_rate_dict = {}
 
         # Lists to collect samples for the table
@@ -815,6 +816,18 @@ class RayPPOTrainer:
                 batch_keys=batch_keys_to_pop,
                 non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
             )
+
+            if "alfworld" in self.config.env.env_name.lower():
+                extra_infos = test_gen_batch.non_tensor_batch.get("extra_info")
+                if extra_infos is None:
+                    raise KeyError("Indexed ALFWorld validation requires extra_info.index")
+                test_gen_batch.non_tensor_batch["env_kwargs"] = np.asarray(
+                    [
+                        {"game_index": int(extra_info["index"])}
+                        for extra_info in extra_infos
+                    ],
+                    dtype=object,
+                )
 
             test_gen_batch.meta_info = {
                 "eos_token_id": self.tokenizer.eos_token_id,
@@ -859,6 +872,12 @@ class RayPPOTrainer:
             data_source_lst.append(test_batch.non_tensor_batch.get('data_source', ['unknown'] * reward_tensor.shape[0]))
             tool_calling_list.append(test_output_gen_batch.non_tensor_batch['tool_callings'])
             traj_uid_list.append(test_output_gen_batch.non_tensor_batch['traj_uid'])
+            batch_traj_uids = test_output_gen_batch.non_tensor_batch['traj_uid']
+            _, batch_unique_idx = np.unique(batch_traj_uids, return_index=True)
+            batch_unique_idx = np.sort(batch_unique_idx)
+            episode_success_list.append(
+                test_output_gen_batch.non_tensor_batch['episode_success'][batch_unique_idx]
+            )
             # success rate
             for k in test_batch.non_tensor_batch.keys():
                 if 'success_rate' in k:
@@ -875,7 +894,14 @@ class RayPPOTrainer:
         data_sources = np.concatenate(data_source_lst, axis=0)
         tool_callings = np.concatenate(tool_calling_list, axis=0)
         traj_uids = np.concatenate(traj_uid_list, axis=0)
+        episode_successes = np.concatenate(episode_success_list, axis=0).astype(np.float32)
+        if len(episode_successes) != len(self.val_dataset):
+            raise RuntimeError(
+                f"Expected one validation outcome for each of {len(self.val_dataset)} cases, "
+                f"got {len(episode_successes)}"
+            )
         success_rate = {k: np.mean(v) for k, v in success_rate_dict.items()}
+        success_rate["success_rate"] = float(episode_successes.mean())
 
         # evaluate test_score based on data source
         data_source_reward = {}
@@ -909,6 +935,16 @@ class RayPPOTrainer:
 
         for k, v in success_rate.items():
             metric_dict[f'val/{k}'] = v
+
+        monitor_size = min(
+            int(self.config.trainer.get("monitor_validation_size", 32)),
+            len(episode_successes),
+        )
+        metric_dict["val/full_success_rate"] = float(episode_successes.mean())
+        metric_dict[f"val/monitor{monitor_size}_success_rate"] = float(
+            episode_successes[:monitor_size].mean()
+        )
+        metric_dict["val/evaluated_cases"] = len(episode_successes)
 
         return metric_dict
 

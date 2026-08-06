@@ -133,11 +133,24 @@ class SearchEnvironmentManager(EnvironmentManagerBase):
 class AlfWorldEnvironmentManager(EnvironmentManagerBase):
     def __init__(self, envs, projection_f, config):
         self.memory = SimpleMemory()
+        self.evaluation_gamefiles_seen = set()
         super().__init__(envs, projection_f, config)
     
     def reset(self, kwargs):
-        text_obs, image_obs, infos = self.envs.reset()
+        game_indices = None
+        if kwargs is not None:
+            game_indices = [int(item["game_index"]) for item in kwargs]
+        text_obs, image_obs, infos = self.envs.reset(game_indices=game_indices)
         self.gamefile = parse_gamefile(infos)
+        if game_indices is not None:
+            if 0 in game_indices:
+                self.evaluation_gamefiles_seen = set()
+            self.evaluation_gamefiles_seen.update(self.gamefile)
+            if len(self.evaluation_gamefiles_seen) == self.envs.eval_game_count:
+                print(
+                    f"ALFWorld indexed validation covered "
+                    f"{len(self.evaluation_gamefiles_seen)} unique gamefiles"
+                )
         # initialize the history buffer
         self.memory.reset(batch_size = len(text_obs))
         self.tasks = []

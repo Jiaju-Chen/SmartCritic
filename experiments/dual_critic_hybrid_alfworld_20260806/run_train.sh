@@ -4,15 +4,15 @@ set -euo pipefail
 source /opt/conda/bin/activate /home/dataset-local/cjj/RL/envs/gigpo-baselines
 cd /home/dataset-local/cjj/RL/GiGPO_PVF
 
-RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_dualcritic_hybrid_t128_v140_8gpu_seed0_20260806}
+RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_dualcritic_hybrid_t128_v140_vb20_8gpu_seed0_20260806}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/dual_critic_hybrid_alfworld}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/dual_critic_hybrid_alfworld/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 
 ORIGINAL_HOME=${HOME:-/home/batchcom}
-RAY_TMP_ROOT=${RAY_TMP_ROOT:-/home/dataset-local/cjj/dch_r}
-FAST_TMP_ROOT=${FAST_TMP_ROOT:-/home/dataset-local/cjj/dch_t}
+RAY_TMP_ROOT=${RAY_TMP_ROOT:-/home/dataset-local/cjj/dch2_r}
+FAST_TMP_ROOT=${FAST_TMP_ROOT:-/home/dataset-local/cjj/dch2_t}
 mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$RAY_TMP_ROOT" "$FAST_TMP_ROOT"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
@@ -28,7 +28,7 @@ export HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-1}
 export TRANSFORMERS_OFFLINE=${TRANSFORMERS_OFFLINE:-1}
 export WANDB_MODE=${WANDB_MODE:-online}
 export WANDB_DIR=$RUN_DIR/wandb
-export WANDB_RUN_ID=${WANDB_RUN_ID:-dchppo0806}
+export WANDB_RUN_ID=${WANDB_RUN_ID:-dchppo2_0806}
 export WANDB_RESUME=${WANDB_RESUME:-allow}
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 export WANDB_HTTP_TIMEOUT=${WANDB_HTTP_TIMEOUT:-30}
@@ -40,9 +40,10 @@ export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-1}
 export NUMEXPR_NUM_THREADS=${NUMEXPR_NUM_THREADS:-1}
 export TOKENIZERS_PARALLELISM=false
 export RAYON_NUM_THREADS=${RAYON_NUM_THREADS:-1}
-export NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.25}
+export NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 export TRAIN_DATA_SIZE=${TRAIN_DATA_SIZE:-128}
 export VAL_DATA_SIZE=${VAL_DATA_SIZE:-140}
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-20}
 
 CRITIC_NUM_LAYERS=${CRITIC_NUM_LAYERS:-2}
 TURN_CRITIC_NUM_LAYERS=${TURN_CRITIC_NUM_LAYERS:-2}
@@ -61,6 +62,7 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   algorithm.hybrid_advantage.token_residual_scale=1.0 \
   algorithm.hybrid_advantage.whiten_advantages=True \
   reward_model.use_step_rewards=True \
+  data.val_batch_size=$VAL_BATCH_SIZE \
   env.rollout.n=1 \
   +critic.model.override_config.num_hidden_layers=$CRITIC_NUM_LAYERS \
   +turn_critic.model.override_config.num_hidden_layers=$TURN_CRITIC_NUM_LAYERS \
@@ -73,6 +75,7 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   trainer.save_freq=$SAVE_FREQ \
   trainer.checkpoint_slot_mode=best_latest \
   trainer.best_checkpoint_metric=val/success_rate \
+  trainer.monitor_validation_size=32 \
   trainer.val_before_train=False \
   trainer.resume_mode=auto \
   trainer.n_gpus_per_node=8 \

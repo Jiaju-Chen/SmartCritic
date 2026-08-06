@@ -348,6 +348,7 @@ trainer:
   max_turn_critic_ckpt_to_keep: null
   checkpoint_slot_mode: legacy # set to best_latest to keep only named best/latest slots
   best_checkpoint_metric: val/success_rate
+  monitor_validation_size: 32
   # The timeout for ray worker group to wait for the register center to be ready
   ray_wait_register_center_timeout: 300
   device: cuda
