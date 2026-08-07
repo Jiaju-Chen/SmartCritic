@@ -826,6 +826,10 @@ class RayPPOTrainer:
             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in input_ids]
             sample_inputs.extend(input_texts)
 
+            game_indices = None
+            if "alfworld" in self.config.env.env_name.lower():
+                game_indices = extract_alfworld_game_indices(test_batch)
+
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids", "data_source"]
             if "multi_modal_data" in test_batch.non_tensor_batch:
@@ -841,8 +845,7 @@ class RayPPOTrainer:
                 non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
             )
 
-            if "alfworld" in self.config.env.env_name.lower():
-                game_indices = extract_alfworld_game_indices(test_gen_batch)
+            if game_indices is not None:
                 test_gen_batch.non_tensor_batch["env_kwargs"] = np.asarray(
                     [{"game_index": int(index)} for index in game_indices],
                     dtype=object,
