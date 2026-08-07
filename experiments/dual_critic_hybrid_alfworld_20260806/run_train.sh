@@ -51,6 +51,7 @@ PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-256}
 TOTAL_EPOCHS=${TOTAL_EPOCHS:-150}
 TEST_FREQ=${TEST_FREQ:-5}
 SAVE_FREQ=${SAVE_FREQ:-5}
+VAL_BEFORE_TRAIN=${VAL_BEFORE_TRAIN:-False}
 RAY_NUM_CPUS=${RAY_NUM_CPUS:-96}
 
 bash examples/ppo_trainer/run_alfworld.sh vllm \
@@ -76,7 +77,7 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   trainer.checkpoint_slot_mode=best_latest \
   trainer.best_checkpoint_metric=val/success_rate \
   trainer.monitor_validation_size=32 \
-  trainer.val_before_train=False \
+  trainer.val_before_train=$VAL_BEFORE_TRAIN \
   trainer.resume_mode=auto \
   trainer.n_gpus_per_node=8 \
   trainer.nnodes=1 \

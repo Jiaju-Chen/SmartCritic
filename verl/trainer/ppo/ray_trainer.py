@@ -102,7 +102,11 @@ class AdvantageEstimator(str, Enum):
 
 def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
     """Read deterministic ALFWorld game indexes from a collated validation batch."""
-    indexes = batch.non_tensor_batch.get("index")
+    indexes = batch.batch.get("index")
+    if indexes is not None:
+        indexes = indexes.detach().cpu().numpy()
+    else:
+        indexes = batch.non_tensor_batch.get("index")
     if indexes is None:
         extra_infos = batch.non_tensor_batch.get("extra_info")
         if extra_infos is not None:

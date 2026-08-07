@@ -14,8 +14,20 @@ def make_batch(non_tensor_batch):
     )
 
 
-def test_prefers_collated_top_level_indexes():
-    batch = make_batch({"index": np.arange(20), "extra_info": np.array([{"index": 99}] * 20)})
+def test_prefers_collated_tensor_indexes():
+    batch = DataProto.from_single_dict(
+        {
+            "input_ids": torch.zeros((20, 1), dtype=torch.long),
+            "index": torch.arange(20),
+            "extra_info": np.array([{"index": 99}] * 20, dtype=object),
+        }
+    )
+
+    np.testing.assert_array_equal(extract_alfworld_game_indices(batch), np.arange(20))
+
+
+def test_supports_non_tensor_top_level_indexes():
+    batch = make_batch({"index": np.arange(20, dtype=object)})
 
     np.testing.assert_array_equal(extract_alfworld_game_indices(batch), np.arange(20))
 
@@ -38,7 +50,8 @@ def test_rejects_missing_indexes():
 
 
 if __name__ == "__main__":
-    test_prefers_collated_top_level_indexes()
+    test_prefers_collated_tensor_indexes()
+    test_supports_non_tensor_top_level_indexes()
     test_supports_legacy_extra_info_indexes()
     test_rejects_missing_indexes()
     print("PASS ALFWorld validation index tests")

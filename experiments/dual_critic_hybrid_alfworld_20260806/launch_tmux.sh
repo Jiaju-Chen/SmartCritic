@@ -13,7 +13,7 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 tmux new-session -d -s "$SESSION" \
-  "cd /home/dataset-local/cjj/RL/GiGPO_PVF && RUN_NAME='$RUN_NAME' RUN_DIR='$RUN_DIR' WANDB_RUN_ID='${WANDB_RUN_ID:-dchppo2_0806}' TRAIN_DATA_SIZE='${TRAIN_DATA_SIZE:-128}' VAL_DATA_SIZE='${VAL_DATA_SIZE:-140}' VAL_BATCH_SIZE='${VAL_BATCH_SIZE:-20}' PPO_MINI_BATCH_SIZE='${PPO_MINI_BATCH_SIZE:-256}' TOTAL_EPOCHS='${TOTAL_EPOCHS:-150}' TEST_FREQ='${TEST_FREQ:-5}' SAVE_FREQ='${SAVE_FREQ:-5}' bash experiments/dual_critic_hybrid_alfworld_20260806/tmux_entry.sh 2>&1 | tee -a '$RUN_DIR/logs/train.tmux.log'"
+  "cd /home/dataset-local/cjj/RL/GiGPO_PVF && RUN_NAME='$RUN_NAME' RUN_DIR='$RUN_DIR' WANDB_RUN_ID='${WANDB_RUN_ID:-dchppo2_0806}' TRAIN_DATA_SIZE='${TRAIN_DATA_SIZE:-128}' VAL_DATA_SIZE='${VAL_DATA_SIZE:-140}' VAL_BATCH_SIZE='${VAL_BATCH_SIZE:-20}' PPO_MINI_BATCH_SIZE='${PPO_MINI_BATCH_SIZE:-256}' TOTAL_EPOCHS='${TOTAL_EPOCHS:-150}' TEST_FREQ='${TEST_FREQ:-5}' SAVE_FREQ='${SAVE_FREQ:-5}' VAL_BEFORE_TRAIN='${VAL_BEFORE_TRAIN:-False}' bash experiments/dual_critic_hybrid_alfworld_20260806/tmux_entry.sh 2>&1 | tee -a '$RUN_DIR/logs/train.tmux.log'"
 
 echo "session=$SESSION"
 echo "run_name=$RUN_NAME"
