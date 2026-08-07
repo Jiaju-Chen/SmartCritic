@@ -100,6 +100,26 @@ class AdvantageEstimator(str, Enum):
     DUAL_CRITIC_HYBRID = "dual_critic_hybrid"
 
 
+def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
+    """Read deterministic ALFWorld game indexes from a collated validation batch."""
+    indexes = batch.non_tensor_batch.get("index")
+    if indexes is None:
+        extra_infos = batch.non_tensor_batch.get("extra_info")
+        if extra_infos is not None:
+            indexes = [extra_info["index"] for extra_info in extra_infos]
+
+    if indexes is None:
+        raise KeyError("Indexed ALFWorld validation requires index or extra_info.index")
+
+    indexes = np.asarray(indexes, dtype=np.int64).reshape(-1)
+    if len(indexes) != len(batch):
+        raise ValueError(
+            "Indexed ALFWorld validation requires one game index per sample; "
+            f"got {len(indexes)} indexes for batch size {len(batch)}"
+        )
+    return indexes
+
+
 @dataclass
 class ResourcePoolManager:
     """
@@ -818,14 +838,9 @@ class RayPPOTrainer:
             )
 
             if "alfworld" in self.config.env.env_name.lower():
-                extra_infos = test_gen_batch.non_tensor_batch.get("extra_info")
-                if extra_infos is None:
-                    raise KeyError("Indexed ALFWorld validation requires extra_info.index")
+                game_indices = extract_alfworld_game_indices(test_gen_batch)
                 test_gen_batch.non_tensor_batch["env_kwargs"] = np.asarray(
-                    [
-                        {"game_index": int(extra_info["index"])}
-                        for extra_info in extra_infos
-                    ],
+                    [{"game_index": int(index)} for index in game_indices],
                     dtype=object,
                 )
 
