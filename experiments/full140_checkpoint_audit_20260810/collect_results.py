@@ -48,6 +48,8 @@ def parse_run(run_dir: Path):
         value = re.search(r"status=(\d+)", status_path.read_text())
         if value:
             status = int(value.group(1))
+    if status is None:
+        return None
 
     return {
         **match.groupdict(),
