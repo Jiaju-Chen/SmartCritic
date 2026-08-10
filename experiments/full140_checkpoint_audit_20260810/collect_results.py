@@ -25,6 +25,8 @@ def parse_run(run_dir: Path):
     )
     if not match:
         return None
+    if int(match.group("val_size")) != 140:
+        return None
 
     log_path = run_dir / "logs" / "eval.log"
     status_path = run_dir / "status.txt"
@@ -101,4 +103,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
