@@ -45,7 +45,11 @@ LOG_PATH=${RUN_DIR}/logs/eval.log
 STATUS_PATH=${RUN_DIR}/status.txt
 CHECKPOINT_PATH=${CHECKPOINT_ROOT}/global_step_${STEP}
 MODEL_PATH=/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306
-SHORT_NAME=${METHOD//_/}${STEP}v${VAL_DATA_SIZE}s${EVAL_SEED}
+if [[ ${METHOD} == critic2l ]]; then
+  SHORT_NAME=c${STEP}v${VAL_DATA_SIZE}s${EVAL_SEED}
+else
+  SHORT_NAME=s${STEP}v${VAL_DATA_SIZE}s${EVAL_SEED}
+fi
 
 if [[ ! -d "${CHECKPOINT_PATH}/actor" ]]; then
   echo "missing actor checkpoint: ${CHECKPOINT_PATH}/actor" >&2
@@ -59,15 +63,15 @@ if [[ -f "${STATUS_PATH}" ]] && grep -qx 'status=0' "${STATUS_PATH}" && \
 fi
 
 mkdir -p "${RUN_DIR}/logs" "${RUN_DIR}/home" \
-  "/home/dataset-local/cjj/f140t/${SHORT_NAME}" \
-  "/home/dataset-local/cjj/f140r/${SHORT_NAME}"
+  "/home/dataset-local/cjj/t/${SHORT_NAME}" \
+  "/home/dataset-local/cjj/r/${SHORT_NAME}"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 export HOME=${RUN_DIR}/home
-export TMPDIR=/home/dataset-local/cjj/f140t/${SHORT_NAME}
+export TMPDIR=/home/dataset-local/cjj/t/${SHORT_NAME}
 export TEMP=${TMPDIR}
 export TMP=${TMPDIR}
-export RAY_TMPDIR=/home/dataset-local/cjj/f140r/${SHORT_NAME}
+export RAY_TMPDIR=/home/dataset-local/cjj/r/${SHORT_NAME}
 export ALFWORLD_DATA=/home/dataset-local/cjj/RL/alfworld_data
 export HF_HOME=/home/dataset-local/cjj/RL/.cache/huggingface
 export HF_HUB_OFFLINE=1
@@ -149,4 +153,3 @@ if ! grep -q "val/evaluated_cases:${VAL_DATA_SIZE}.000" "${LOG_PATH}"; then
   echo "evaluation exited successfully but did not report ${VAL_DATA_SIZE} cases" >&2
   exit 4
 fi
-
