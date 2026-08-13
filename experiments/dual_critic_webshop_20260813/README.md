@@ -30,6 +30,10 @@ The standard WebShop resources are reused read-only from
 symbolic links inside the isolated worktree; it does not copy or edit those
 resources.
 
+Each environment worker embeds a Java search runtime. The launcher restricts
+each Java runtime to one active processor and serial garbage collection so the
+256 training and validation workers do not exhaust native threads at startup.
+
 ## Remote layout
 
 ```text
