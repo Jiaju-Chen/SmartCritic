@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ray
 import gym
 import numpy as np
+import os
+import ray
 
 # -----------------------------------------------------------------------------
 # Ray remote worker actor -----------------------------------------------------
@@ -58,6 +59,7 @@ class WebshopWorker:
         """Reset the environment with given session index"""
         obs, info = self.env.reset(session=idx)
         info = dict(info or {})
+        info['goal_index'] = int(idx)
         info['available_actions'] = self.env.get_available_actions()
         info['won'] = False
         return obs, info
@@ -74,6 +76,10 @@ class WebshopWorker:
     def get_goals(self):
         """Get environment goals"""
         return self.env.server.goals
+
+    def ready(self):
+        """Confirm that the embedded Python and Java environment is initialized."""
+        return True
     
     def close(self):
         """Close the environment"""
@@ -119,9 +125,15 @@ class WebshopMultiProcessEnv(gym.Env):
         # -------------------------- Ray actors setup --------------------------
         env_worker = ray.remote(**resources_per_worker)(WebshopWorker)
         self._workers = []
+        init_batch_size = max(int(os.environ.get('WEBSHOP_ENV_INIT_BATCH_SIZE', '16')), 1)
+        pending_ready = []
         for i in range(self.num_processes):
             worker = env_worker.remote(seed + (i // self.group_n), self._env_kwargs)
             self._workers.append(worker)
+            pending_ready.append(worker.ready.remote())
+            if len(pending_ready) == init_batch_size or i + 1 == self.num_processes:
+                ray.get(pending_ready)
+                pending_ready = []
 
         # Get goals from the first worker
         goals_future = self._workers[0].get_goals.remote()
@@ -172,8 +184,18 @@ class WebshopMultiProcessEnv(gym.Env):
 
         return obs_list, reward_list, done_list, info_list
 
-    def reset(self):
-        idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
+    def reset(self, goal_indices=None):
+        if goal_indices is None:
+            idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
+        else:
+            idx = np.asarray(goal_indices, dtype=np.int64).reshape(-1)
+            if len(idx) != self.env_num:
+                raise ValueError(
+                    f'Expected {self.env_num} goal indices, got {len(idx)}',
+                )
+            invalid = [int(i) for i in idx if i not in self.goal_idxs]
+            if invalid:
+                raise ValueError(f'Goal indices outside this split: {invalid}')
         idx = np.repeat(idx, self.group_n).tolist()
 
         # Send reset commands to all workers

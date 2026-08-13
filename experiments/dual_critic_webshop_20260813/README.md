@@ -15,7 +15,8 @@ validation stream, seed, and checkpoint policy are held fixed. Only
 
 - Actor: Qwen2.5-1.5B-Instruct.
 - Training interactions per update: 128 (`env.rollout.n=1`).
-- Official monitoring validation: 128 WebShop interactions every 5 updates.
+- Official monitoring validation: 128 WebShop interactions every 5 updates,
+  executed as eight fixed non-overlapping batches on 16 reusable workers.
 - WebShop validation pool: goal indexes `[0, 500)`.
 - Maximum environment turns: 15.
 - Training updates: 150.
@@ -30,9 +31,10 @@ The standard WebShop resources are reused read-only from
 symbolic links inside the isolated worktree; it does not copy or edit those
 resources.
 
-Each environment worker embeds a Java search runtime. The launcher restricts
-each Java runtime to one active processor and serial garbage collection so the
-256 training and validation workers do not exhaust native threads at startup.
+Each environment worker embeds a Java search runtime. The launcher bounds its
+heap and threads, initializes workers in batches of 16, and reuses 16 validation
+workers across the 128 indexed goals. Run `probe_parallel_envs.sh` to
+stress-test the complete 128-train-worker plus 16-validation-worker topology.
 
 ## Remote layout
 

@@ -401,7 +401,10 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         super().__init__(envs, projection_f, config)
     
     def reset(self, kwargs) -> Dict[str, Any]:
-        obs, infos = self.envs.reset()
+        goal_indices = None
+        if kwargs is not None:
+            goal_indices = [int(item["goal_index"]) for item in kwargs]
+        obs, infos = self.envs.reset(goal_indices=goal_indices)
         self.tasks = self.extract_task(obs)
         obs = self.format_obs(obs)
         # infos = [None] * self.envs.num_envs
