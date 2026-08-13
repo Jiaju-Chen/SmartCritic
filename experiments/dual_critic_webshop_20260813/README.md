@@ -31,10 +31,10 @@ The standard WebShop resources are reused read-only from
 symbolic links inside the isolated worktree; it does not copy or edit those
 resources.
 
-Each environment worker embeds a Java search runtime. The launcher bounds its
-heap and threads, initializes workers in batches of 16, and reuses 16 validation
-workers across the 128 indexed goals. Run `probe_parallel_envs.sh` to
-stress-test the complete 128-train-worker plus 16-validation-worker topology.
+Each Ray actor embeds a Java search runtime and hosts eight independent WebShop
+environments. The launcher bounds Java resources, initializes four actors at a
+time, and reuses 16 validation environments across the 128 indexed goals. Run
+`probe_parallel_envs.sh` to stress-test the complete 128+16 environment topology.
 
 ## Remote layout
 

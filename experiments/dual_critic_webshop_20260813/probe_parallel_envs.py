@@ -50,6 +50,12 @@ def main() -> None:
         resources_per_worker=resources,
     )
     train_obs, _ = train_envs.reset()
+    train_actions = [f"search[probe product {i}]" for i in range(train_count)]
+    step_obs, rewards, dones, step_infos = train_envs.step(train_actions)
+    assert len(step_obs) == train_count
+    assert len(rewards) == train_count
+    assert len(dones) == train_count
+    assert len(step_infos) == train_count
     seen_goal_indices = []
     for start in range(0, val_total, val_count):
         goal_indices = list(range(start, start + val_count))
@@ -59,6 +65,7 @@ def main() -> None:
     assert seen_goal_indices == list(range(val_total))
     print(
         f"PASS train_envs={len(train_obs)} val_envs={val_count} "
+        f"train_step_results={len(step_obs)} "
         f"validation_interactions={len(seen_goal_indices)} "
         f"unique_validation_goals={len(set(seen_goal_indices))}"
     )

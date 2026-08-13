@@ -27,7 +27,7 @@ class WebshopWorker:
     Each actor hosts a *WebAgentTextEnv* instance.
     """
     
-    def __init__(self, seed, env_kwargs):
+    def __init__(self, seeds, env_kwargs):
         # Lazy import avoids CUDA initialisation issues
         import sys
         import os
@@ -35,47 +35,62 @@ class WebshopWorker:
         sys.path.append(project_root)
         from web_agent_site.envs import WebAgentTextEnv  # noqa: WPS433 (runtime import)
         
-        env_kwargs['seed'] = seed
-        self.env = gym.make('WebAgentTextEnv-v0', **env_kwargs)
+        self.envs = []
+        for seed in seeds:
+            worker_env_kwargs = dict(env_kwargs)
+            worker_env_kwargs['seed'] = seed
+            self.envs.append(gym.make('WebAgentTextEnv-v0', **worker_env_kwargs))
     
-    def step(self, action):
-        """Execute a step in the environment"""
-        obs, reward, done, info = self.env.step(action)
-        info = dict(info or {})  # make a *copy* so we can mutate safely
-        info['available_actions'] = self.env.get_available_actions()
-        info['task_score'] = reward
+    def step(self, actions):
+        """Execute one action for every environment in this worker shard."""
+        if len(actions) != len(self.envs):
+            raise ValueError(f'Expected {len(self.envs)} actions, got {len(actions)}')
 
-        # Redefine reward. We only use rule-based reward - win for 10, lose for 0.
-        if done and reward == 1.0:
-            info['won'] = True
-            reward = 10.0
-        else:
+        results = []
+        for env, action in zip(self.envs, actions):
+            obs, reward, done, info = env.step(action)
+            info = dict(info or {})
+            info['available_actions'] = env.get_available_actions()
+            info['task_score'] = reward
+
+            # Redefine reward. We only use rule-based reward - win for 10, lose for 0.
+            if done and reward == 1.0:
+                info['won'] = True
+                reward = 10.0
+            else:
+                info['won'] = False
+                reward = 0
+            results.append((obs, reward, done, info))
+        return results
+    
+    def reset(self, indices):
+        """Reset every environment in this worker shard."""
+        if len(indices) != len(self.envs):
+            raise ValueError(f'Expected {len(self.envs)} indices, got {len(indices)}')
+
+        results = []
+        for env, idx in zip(self.envs, indices):
+            obs, info = env.reset(session=idx)
+            info = dict(info or {})
+            info['goal_index'] = int(idx)
+            info['available_actions'] = env.get_available_actions()
             info['won'] = False
-            reward = 0
-
-        return obs, reward, done, info
+            results.append((obs, info))
+        return results
     
-    def reset(self, idx):
-        """Reset the environment with given session index"""
-        obs, info = self.env.reset(session=idx)
-        info = dict(info or {})
-        info['goal_index'] = int(idx)
-        info['available_actions'] = self.env.get_available_actions()
-        info['won'] = False
-        return obs, info
-    
-    def render(self, mode_for_render):
+    def render(self, mode_for_render, local_index=None):
         """Render the environment"""
-        rendered = self.env.render(mode=mode_for_render)
-        return rendered
+        if local_index is not None:
+            return self.envs[local_index].render(mode=mode_for_render)
+        return [env.render(mode=mode_for_render) for env in self.envs]
     
     def get_available_actions(self):
         """Get available actions"""
-        return self.env.get_available_actions()
+        return [env.get_available_actions() for env in self.envs]
     
     def get_goals(self):
         """Get environment goals"""
-        return self.env.server.goals
+        return self.envs[0].server.goals
 
     def ready(self):
         """Confirm that the embedded Python and Java environment is initialized."""
@@ -83,7 +98,8 @@ class WebshopWorker:
     
     def close(self):
         """Close the environment"""
-        self.env.close()
+        for env in self.envs:
+            env.close()
 
 
 # -----------------------------------------------------------------------------
@@ -123,15 +139,28 @@ class WebshopMultiProcessEnv(gym.Env):
         self._env_kwargs = env_kwargs if env_kwargs is not None else {'observation_mode': 'text', 'num_products': None}
 
         # -------------------------- Ray actors setup --------------------------
-        env_worker = ray.remote(**resources_per_worker)(WebshopWorker)
+        worker_env_batch_size = max(
+            int(os.environ.get('WEBSHOP_ENVS_PER_WORKER', '8')),
+            1,
+        )
+        worker_resources = dict(resources_per_worker)
+        if 'num_cpus' in worker_resources:
+            worker_resources['num_cpus'] *= worker_env_batch_size
+        if 'num_gpus' in worker_resources:
+            worker_resources['num_gpus'] *= worker_env_batch_size
+        env_worker = ray.remote(**worker_resources)(WebshopWorker)
         self._workers = []
-        init_batch_size = max(int(os.environ.get('WEBSHOP_ENV_INIT_BATCH_SIZE', '16')), 1)
+        self._worker_slices = []
+        init_batch_size = max(int(os.environ.get('WEBSHOP_ENV_INIT_BATCH_SIZE', '4')), 1)
         pending_ready = []
-        for i in range(self.num_processes):
-            worker = env_worker.remote(seed + (i // self.group_n), self._env_kwargs)
+        for start in range(0, self.num_processes, worker_env_batch_size):
+            stop = min(start + worker_env_batch_size, self.num_processes)
+            seeds = [seed + (i // self.group_n) for i in range(start, stop)]
+            worker = env_worker.remote(seeds, self._env_kwargs)
             self._workers.append(worker)
+            self._worker_slices.append(slice(start, stop))
             pending_ready.append(worker.ready.remote())
-            if len(pending_ready) == init_batch_size or i + 1 == self.num_processes:
+            if len(pending_ready) == init_batch_size or stop == self.num_processes:
                 ray.get(pending_ready)
                 pending_ready = []
 
@@ -168,13 +197,13 @@ class WebshopMultiProcessEnv(gym.Env):
             )
 
         # Send step commands to all workers
-        futures = []
-        for worker, action in zip(self._workers, actions):
-            future = worker.step.remote(action)
-            futures.append(future)
+        futures = [
+            worker.step.remote(actions[worker_slice])
+            for worker, worker_slice in zip(self._workers, self._worker_slices)
+        ]
 
         # Collect results
-        results = ray.get(futures)
+        results = [item for shard in ray.get(futures) for item in shard]
         obs_list, reward_list, done_list, info_list = [], [], [], []
         for obs, reward, done, info in results:
             obs_list.append(obs)
@@ -199,13 +228,13 @@ class WebshopMultiProcessEnv(gym.Env):
         idx = np.repeat(idx, self.group_n).tolist()
 
         # Send reset commands to all workers
-        futures = []
-        for worker, i in zip(self._workers, idx):
-            future = worker.reset.remote(i)
-            futures.append(future)
+        futures = [
+            worker.reset.remote(idx[worker_slice])
+            for worker, worker_slice in zip(self._workers, self._worker_slices)
+        ]
 
         # Collect results
-        results = ray.get(futures)
+        results = [item for shard in ray.get(futures) for item in shard]
         obs_list, info_list = [], []
         for obs, info in results:
             obs_list.append(obs)
@@ -219,15 +248,15 @@ class WebshopMultiProcessEnv(gym.Env):
 
     def render(self, mode: str = 'text', env_idx: int = None):
         if env_idx is not None:
-            future = self._workers[env_idx].render.remote(mode)
-            return ray.get(future)
+            for worker, worker_slice in zip(self._workers, self._worker_slices):
+                if worker_slice.start <= env_idx < worker_slice.stop:
+                    local_index = env_idx - worker_slice.start
+                    future = worker.render.remote(mode, local_index)
+                    return ray.get(future)
+            raise IndexError(f'Environment index out of range: {env_idx}')
 
-        futures = []
-        for worker in self._workers:
-            future = worker.render.remote(mode)
-            futures.append(future)
-        
-        return ray.get(futures)
+        futures = [worker.render.remote(mode) for worker in self._workers]
+        return [item for shard in ray.get(futures) for item in shard]
 
     # ------------------------------------------------------------------
     # Clean‑up ----------------------------------------------------------
