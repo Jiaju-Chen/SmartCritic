@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_dualcritic28l_webshop_t128_v128_8gpu_seed0_20260813}
+export SESSION=${SESSION:-ppo_dualcritic28l_webshop_20260813}
+export WANDB_RUN_ID=${WANDB_RUN_ID:-dcw28l_0813}
+export CRITIC_NUM_LAYERS=28
+export TURN_CRITIC_NUM_LAYERS=28
+
+exec bash "$(dirname "$0")/launch_tmux.sh"
