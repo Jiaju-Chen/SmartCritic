@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 import csv
 import json
+import os
 import re
 from pathlib import Path
 
 
 AUDIT_ROOT = Path(
-    "/home/dataset-local/cjj/RL/runs/dual_critic_unseen_audit_20260814"
+    os.environ.get(
+        "AUDIT_ROOT",
+        "/home/dataset-local/cjj/RL/runs/dual_critic_unseen_audit_20260814",
+    )
 )
 RESULT_KEYS = (
     "val/text/test_score",
