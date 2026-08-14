@@ -118,6 +118,7 @@ class AlfworldEnvs(gym.Env):
         self.multi_modal = (env_type == 'AlfredThorEnv')
         self.is_train = is_train
         self.num_processes = env_num * group_n
+        self.active_num_processes = self.num_processes
         self.group_n = group_n
 
         # Create Ray remote actors instead of processes
@@ -142,12 +143,12 @@ class AlfworldEnvs(gym.Env):
         self.prev_admissible_commands = [None for _ in range(self.num_processes)]
 
     def step(self, actions):
-        assert len(actions) == self.num_processes, \
-            "The num of actions must be equal to the num of processes"
+        assert len(actions) == self.active_num_processes, \
+            "The num of actions must be equal to the num of active processes"
 
         # Send step commands to all workers
         futures = []
-        for i, worker in enumerate(self.workers):
+        for i, worker in enumerate(self.workers[:self.active_num_processes]):
             future = worker.step.remote(actions[i])
             futures.append(future)
 
@@ -187,11 +188,17 @@ class AlfworldEnvs(gym.Env):
 
         # Send reset commands to all workers
         futures = []
-        if game_indices is not None and len(game_indices) != self.num_processes:
+        if game_indices is None:
+            self.active_num_processes = self.num_processes
+        elif not 0 < len(game_indices) <= self.num_processes:
             raise ValueError(
-                f"Expected {self.num_processes} ALFWorld game indexes, got {len(game_indices)}"
+                f"Expected between 1 and {self.num_processes} ALFWorld game indexes, "
+                f"got {len(game_indices)}"
             )
-        for i, worker in enumerate(self.workers):
+        else:
+            self.active_num_processes = len(game_indices)
+
+        for i, worker in enumerate(self.workers[:self.active_num_processes]):
             game_index = None if game_indices is None else int(game_indices[i])
             future = worker.reset.remote(game_index)
             futures.append(future)
@@ -225,7 +232,7 @@ class AlfworldEnvs(gym.Env):
         Usually needed only for multi-modal environments; otherwise can return None.
         """
         futures = []
-        for worker in self.workers:
+        for worker in self.workers[:self.active_num_processes]:
             future = worker.getobs.remote()
             futures.append(future)
 
@@ -238,7 +245,7 @@ class AlfworldEnvs(gym.Env):
         Simply return the prev_admissible_commands stored by the main process.
         You could also design it to fetch after each step or another method.
         """
-        return self.prev_admissible_commands
+        return self.prev_admissible_commands[:self.active_num_processes]
 
     def close(self):
         """
