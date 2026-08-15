@@ -19,6 +19,9 @@ Remote branch: `hygae-alfworld-20260815`
 
 Launch with `bash experiments/hygae_unified_alfworld_20260815/launch_pilot5.sh`.
 
+Launch the 150-step run with
+`bash experiments/hygae_unified_alfworld_20260815/launch_full150.sh`.
+
 ## Pilot Result
 
 - Run: `ppo_qwen25_15b_hygae_unified_critic2l_t128_v140_vb20_8gpu_seed0_pilot5_20260815`
