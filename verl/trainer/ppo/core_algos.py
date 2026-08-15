@@ -190,6 +190,127 @@ def compute_sao_skip_observation_gae(
     return advantages, returns
 
 
+def compute_hygae_unified_gae(
+    token_level_rewards: torch.Tensor,
+    values: torch.Tensor,
+    response_mask: torch.Tensor,
+    traj_index: np.ndarray,
+    step_id: np.ndarray,
+    token_gamma: float,
+    token_lam: float,
+    turn_lam: float,
+    alpha: float = 0.5,
+    length_matched_turn_gamma: bool = True,
+    whiten_advantages: bool = True,
+):
+    """Estimate HyGAE advantages and returns with one shared value model.
+
+    Token GAE follows the generated-token trajectory while skipping environment
+    observations. Turn GAE reads the same critic at the final valid token of each
+    environment action. The mixed return follows Eq. 16-17 of HyGAE, so the actor
+    and the unified critic use the same turn/token mixing coefficient.
+    """
+    if token_level_rewards.shape != values.shape or values.shape != response_mask.shape:
+        raise ValueError(
+            "HyGAE expects rewards, values, and response_mask to have the same "
+            f"shape; got {token_level_rewards.shape}, {values.shape}, "
+            f"{response_mask.shape}"
+        )
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError(f"HyGAE alpha must be in [0, 1], got {alpha}")
+
+    token_advantages, token_returns = compute_sao_skip_observation_gae(
+        token_level_rewards=token_level_rewards,
+        values=values,
+        response_mask=response_mask,
+        traj_index=traj_index,
+        step_id=step_id,
+        gamma=token_gamma,
+        lam=token_lam,
+        whiten_advantages=False,
+    )
+
+    with torch.no_grad():
+        batch_size = token_level_rewards.shape[0]
+        if len(traj_index) != batch_size or len(step_id) != batch_size:
+            raise ValueError(
+                "HyGAE expects traj_index and step_id to match batch size "
+                f"{batch_size}; got {len(traj_index)} and {len(step_id)}"
+            )
+
+        trajectories = defaultdict(list)
+        valid_positions_by_row = {}
+        for row in range(batch_size):
+            trajectories[traj_index[row]].append(row)
+            valid_positions_by_row[row] = torch.nonzero(
+                response_mask[row] > 0, as_tuple=False
+            ).flatten()
+
+        turn_advantages = torch.zeros_like(token_level_rewards)
+        broadcast_turn_returns = torch.zeros_like(token_level_rewards)
+        token_gamma_value = float(token_gamma)
+        turn_lam_value = float(turn_lam)
+
+        for rows in trajectories.values():
+            rows.sort(key=lambda row: int(step_id[row]))
+            next_turn_value = 0.0
+            next_turn_gae = 0.0
+
+            for row in reversed(rows):
+                valid_positions = valid_positions_by_row[row]
+                if valid_positions.numel() == 0:
+                    continue
+
+                # HyGAE identifies the turn value with the unified critic value
+                # at the final generated-token position of the turn.
+                boundary_position = int(valid_positions[-1])
+                current_turn_value = values[row, boundary_position]
+                turn_reward = token_level_rewards[row, valid_positions].sum()
+                if length_matched_turn_gamma:
+                    turn_gamma = token_gamma_value ** int(valid_positions.numel())
+                else:
+                    turn_gamma = token_gamma_value
+
+                delta = turn_reward + turn_gamma * next_turn_value - current_turn_value
+                next_turn_gae = delta + turn_gamma * turn_lam_value * next_turn_gae
+                turn_advantages[row, valid_positions] = next_turn_gae
+
+                # Eq. 16: move the turn return from the boundary to every token
+                # using the discounted rewards after that token.
+                turn_return_at_boundary = next_turn_gae + current_turn_value
+                discounted_future_rewards = torch.zeros_like(turn_return_at_boundary)
+                for position in reversed(valid_positions.tolist()):
+                    broadcast_turn_returns[row, position] = (
+                        turn_return_at_boundary + discounted_future_rewards
+                    )
+                    discounted_future_rewards = token_gamma_value * (
+                        token_level_rewards[row, position] + discounted_future_rewards
+                    )
+
+                next_turn_value = current_turn_value
+
+        alpha_value = float(alpha)
+        hybrid_advantages = (
+            alpha_value * turn_advantages
+            + (1.0 - alpha_value) * token_advantages
+        )
+        hybrid_returns = (
+            alpha_value * broadcast_turn_returns
+            + (1.0 - alpha_value) * token_returns
+        )
+        hybrid_returns = hybrid_returns * response_mask
+        if whiten_advantages:
+            hybrid_advantages = verl_F.masked_whiten(hybrid_advantages, response_mask)
+
+    return (
+        hybrid_advantages,
+        hybrid_returns,
+        turn_advantages,
+        token_advantages,
+        broadcast_turn_returns,
+    )
+
+
 def compute_dual_critic_hybrid_gae(
     token_level_rewards: torch.Tensor,
     token_values: torch.Tensor,

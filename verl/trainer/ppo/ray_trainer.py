@@ -98,6 +98,7 @@ class AdvantageEstimator(str, Enum):
     PROGRESS_VALUE = "progress_value"
     SAO_SKIP_OBSERVATION = "sao_skip_observation"
     DUAL_CRITIC_HYBRID = "dual_critic_hybrid"
+    HYGAE_UNIFIED = "hygae_unified"
 
 
 def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
@@ -269,7 +270,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, hybrid_advantage_cfg=None, **kwargs):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, hybrid_advantage_cfg=None, hygae_cfg=None, **kwargs):
     """Compute advantage estimates for policy optimization.
 
     This function computes advantage estimates using various estimators like GAE, GRPO, REINFORCE++, etc.
@@ -342,6 +343,26 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         data.batch["turn_value_mask"] = turn_value_mask
         data.batch["turn_advantages"] = turn_advantages
         data.batch["token_residuals"] = token_residuals
+    elif adv_estimator == AdvantageEstimator.HYGAE_UNIFIED:
+        hygae_cfg = hygae_cfg or {}
+        advantages, returns, turn_advantages, token_advantages, turn_returns = core_algos.compute_hygae_unified_gae(
+            token_level_rewards=data.batch["token_level_rewards"],
+            values=data.batch["values"],
+            response_mask=data.batch["response_mask"],
+            traj_index=data.non_tensor_batch["traj_uid"],
+            step_id=data.non_tensor_batch["step_id"],
+            token_gamma=gamma,
+            token_lam=lam,
+            turn_lam=hygae_cfg.get("turn_lam", lam),
+            alpha=hygae_cfg.get("alpha", 0.5),
+            length_matched_turn_gamma=hygae_cfg.get("length_matched_turn_gamma", True),
+            whiten_advantages=hygae_cfg.get("whiten_advantages", True),
+        )
+        data.batch["advantages"] = advantages
+        data.batch["returns"] = returns
+        data.batch["hygae_turn_advantages"] = turn_advantages
+        data.batch["hygae_token_advantages"] = token_advantages
+        data.batch["hygae_turn_returns"] = turn_returns
     elif adv_estimator == AdvantageEstimator.GRPO:
         # TODO: test on more adv estimator type
         grpo_calculation_mask = data.batch["response_mask"]
@@ -529,6 +550,7 @@ class RayPPOTrainer:
             AdvantageEstimator.GAE,
             AdvantageEstimator.SAO_SKIP_OBSERVATION,
             AdvantageEstimator.DUAL_CRITIC_HYBRID,
+            AdvantageEstimator.HYGAE_UNIFIED,
         ]:
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
@@ -1433,7 +1455,20 @@ class RayPPOTrainer:
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
                             progress_value_cfg=self.config.algorithm.get("progress_value", {}),
                             hybrid_advantage_cfg=self.config.algorithm.get("hybrid_advantage", {}),
+                            hygae_cfg=self.config.algorithm.get("hygae", {}),
                         )
+
+                        if self.config.algorithm.adv_estimator == AdvantageEstimator.HYGAE_UNIFIED:
+                            response_mask = batch.batch["response_mask"]
+                            hygae_turn_advantages = batch.batch["hygae_turn_advantages"]
+                            hygae_token_advantages = batch.batch["hygae_token_advantages"]
+                            metrics.update(
+                                {
+                                    "hygae/turn_advantage_rms": torch.sqrt(masked_mean(hygae_turn_advantages.square(), response_mask)).item(),
+                                    "hygae/token_advantage_rms": torch.sqrt(masked_mean(hygae_token_advantages.square(), response_mask)).item(),
+                                    "hygae/mixed_return_mean": masked_mean(batch.batch["returns"], response_mask).item(),
+                                }
+                            )
 
                         if self.use_turn_critic:
                             response_mask = batch.batch["response_mask"]

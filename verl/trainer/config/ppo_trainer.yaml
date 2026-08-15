@@ -316,6 +316,11 @@ algorithm:
     turn_lam: 0.95
     token_residual_scale: 1.0
     whiten_advantages: True
+  hygae:
+    alpha: 0.5
+    turn_lam: 1.0
+    length_matched_turn_gamma: True
+    whiten_advantages: True
   filter_groups: # DAPO from https://arxiv.org/abs/2503.14476
     enable: False
     max_num_gen_batches: 10
