@@ -882,7 +882,10 @@ class CriticWorker(Worker):
         attn_implementation = "flash_attention_2" if config.model.get("use_remove_padding", False) else "sdpa"
         critic_model_config = AutoConfig.from_pretrained(local_path, attn_implementation=attn_implementation, trust_remote_code=config.model.get("trust_remote_code", False))
         update_model_config(critic_model_config, override_config_kwargs=override_config_kwargs)
-        critic_model_config.num_labels = 1
+        num_value_heads = int(config.model.get("num_value_heads", 1))
+        if num_value_heads not in (1, 2):
+            raise ValueError(f"critic.model.num_value_heads must be 1 or 2, got {num_value_heads}")
+        critic_model_config.num_labels = num_value_heads
         if self.rank == 0:
             print(
                 "Critic model config after override: "

@@ -902,6 +902,46 @@ def compute_value_loss(vpreds: torch.Tensor, returns: torch.Tensor, values: torc
     return vf_loss, vf_clipfrac
 
 
+def compute_luna_unified_value_loss(
+    token_vpreds: torch.Tensor,
+    turn_vpreds: torch.Tensor,
+    token_values: torch.Tensor,
+    turn_values: torch.Tensor,
+    token_returns: torch.Tensor,
+    turn_returns: torch.Tensor,
+    token_mask: torch.Tensor,
+    turn_mask: torch.Tensor,
+    cliprange_value: float,
+    turn_loss_coef: float = 1.0,
+    loss_agg_mode: str = "token-mean",
+):
+    """Train Luna's two value heads with one shared critic forward pass."""
+    token_vf_loss, token_vf_clipfrac = compute_value_loss(
+        vpreds=token_vpreds,
+        values=token_values,
+        returns=token_returns,
+        response_mask=token_mask,
+        cliprange_value=cliprange_value,
+        loss_agg_mode=loss_agg_mode,
+    )
+    turn_vf_loss, turn_vf_clipfrac = compute_value_loss(
+        vpreds=turn_vpreds,
+        values=turn_values,
+        returns=turn_returns,
+        response_mask=turn_mask,
+        cliprange_value=cliprange_value,
+        loss_agg_mode=loss_agg_mode,
+    )
+    total_vf_loss = token_vf_loss + float(turn_loss_coef) * turn_vf_loss
+    return (
+        total_vf_loss,
+        token_vf_loss,
+        token_vf_clipfrac,
+        turn_vf_loss,
+        turn_vf_clipfrac,
+    )
+
+
 def kl_penalty(logprob: torch.FloatTensor, ref_logprob: torch.FloatTensor, kl_penalty) -> torch.FloatTensor:
     """Compute KL divergence given logprob and ref_logprob.
     Copied from https://github.com/huggingface/trl/blob/main/trl/trainer/ppo_trainer.py#L1104

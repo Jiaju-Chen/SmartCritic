@@ -162,6 +162,8 @@ critic:
     weight_decay: 0.01
   model:
     path: ~/models/deepseek-llm-7b-chat
+    # Set to 2 for Luna's shared token-value and turn-value heads.
+    num_value_heads: 1
     use_shm: False
     tokenizer_path: ${actor_rollout_ref.model.path}
     override_config: { }
@@ -196,6 +198,8 @@ critic:
   grad_clip: 1.0
   cliprange_value: 0.5
   loss_agg_mode: ${actor_rollout_ref.actor.loss_agg_mode}
+  # Relative weight of the turn-boundary value loss when num_value_heads=2.
+  unified_luna_turn_loss_coef: 1.0
   checkpoint:
     contents: ['model', 'optimizer', 'extra']  # with 'hf_model' you can save whole model as hf format, now only use sharded model checkpoint to save space
 

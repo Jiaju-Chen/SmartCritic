@@ -51,6 +51,10 @@ class DataParallelPPOCritic(BasePPOCritic):
         self.critic_module = critic_module
         self.critic_optimizer = critic_optimizer
         self.use_remove_padding = self.config.model.get("use_remove_padding", False)
+        self.num_value_heads = int(self.config.model.get("num_value_heads", 1))
+        self.turn_loss_coef = float(self.config.get("unified_luna_turn_loss_coef", 1.0))
+        if self.num_value_heads not in (1, 2):
+            raise ValueError(f"critic.model.num_value_heads must be 1 or 2, got {self.num_value_heads}")
         print(f"Critic use_remove_padding={self.use_remove_padding}")
 
         self.ulysses_sequence_parallel_size = self.config.get("ulysses_sequence_parallel_size", 1)
@@ -171,7 +175,10 @@ class DataParallelPPOCritic(BasePPOCritic):
             assert len(indices) == values.size(0), f"{len(indices)} vs. {values.size()}"
             revert_indices = torch.tensor(get_reverse_idx(indices), dtype=torch.long)
             values = values[revert_indices]
-        values = values * attention_mask[:, -response_length - 1 : -1]
+        value_mask = attention_mask[:, -response_length - 1 : -1]
+        if values.ndim == 3:
+            value_mask = value_mask.unsqueeze(-1)
+        values = values * value_mask
         return values
 
     @GPUMemoryLogger(role="dp critic", logger=logger)
@@ -181,6 +188,8 @@ class DataParallelPPOCritic(BasePPOCritic):
         metrics = {}
 
         select_keys = ["input_ids", "responses", "attention_mask", "position_ids", "values", "returns"]
+        if self.num_value_heads == 2:
+            select_keys.extend(["turn_values", "turn_returns", "turn_value_mask"])
         if "value_mask" in data.batch:
             select_keys.append("value_mask")
         batch = data.select(batch_keys=select_keys).batch
@@ -230,16 +239,46 @@ class DataParallelPPOCritic(BasePPOCritic):
 
                     vpreds = self._forward_micro_batch(data)
 
-                    # assert not torch.any(torch.isnan(vpreds)).item()
+                    if self.num_value_heads == 2:
+                        if vpreds.ndim != 3 or vpreds.size(-1) != 2:
+                            raise ValueError(
+                                "Unified Luna critic expects values shaped "
+                                f"[batch, response_length, 2], got {tuple(vpreds.shape)}"
+                            )
+                        token_vpreds = vpreds[..., 0]
+                        turn_vpreds = vpreds[..., 1]
+                        turn_values = data["turn_values"]
+                        turn_returns = data["turn_returns"]
+                        turn_mask = data["turn_value_mask"]
 
-                    vf_loss, vf_clipfrac = core_algos.compute_value_loss(
-                        vpreds=vpreds,
-                        values=values,
-                        returns=returns,
-                        response_mask=response_mask,
-                        cliprange_value=self.config.cliprange_value,
-                        loss_agg_mode=self.config.loss_agg_mode,
-                    )
+                        (
+                            vf_loss,
+                            token_vf_loss,
+                            token_vf_clipfrac,
+                            turn_vf_loss,
+                            turn_vf_clipfrac,
+                        ) = core_algos.compute_luna_unified_value_loss(
+                            token_vpreds=token_vpreds,
+                            turn_vpreds=turn_vpreds,
+                            token_values=values,
+                            turn_values=turn_values,
+                            token_returns=returns,
+                            turn_returns=turn_returns,
+                            token_mask=response_mask,
+                            turn_mask=turn_mask,
+                            cliprange_value=self.config.cliprange_value,
+                            turn_loss_coef=self.turn_loss_coef,
+                            loss_agg_mode=self.config.loss_agg_mode,
+                        )
+                    else:
+                        vf_loss, vf_clipfrac = core_algos.compute_value_loss(
+                            vpreds=vpreds,
+                            values=values,
+                            returns=returns,
+                            response_mask=response_mask,
+                            cliprange_value=self.config.cliprange_value,
+                            loss_agg_mode=self.config.loss_agg_mode,
+                        )
                     if self.config.use_dynamic_bsz:
                         # relative to the dynamic bsz
                         loss = vf_loss * (len(data) / self.config.ppo_mini_batch_size)
@@ -248,11 +287,22 @@ class DataParallelPPOCritic(BasePPOCritic):
 
                     loss.backward()
 
-                    data = {
-                        "critic/vf_loss": vf_loss.detach().item(),
-                        "critic/vf_clipfrac": vf_clipfrac.detach().item(),
-                        "critic/vpred_mean": masked_mean(vpreds, response_mask).detach().item(),
-                    }
+                    if self.num_value_heads == 2:
+                        data = {
+                            "critic/vf_loss": vf_loss.detach().item(),
+                            "critic/token_vf_loss": token_vf_loss.detach().item(),
+                            "critic/token_vf_clipfrac": token_vf_clipfrac.detach().item(),
+                            "critic/token_vpred_mean": masked_mean(token_vpreds, response_mask).detach().item(),
+                            "critic/turn_vf_loss": turn_vf_loss.detach().item(),
+                            "critic/turn_vf_clipfrac": turn_vf_clipfrac.detach().item(),
+                            "critic/turn_vpred_mean": masked_mean(turn_vpreds, turn_mask).detach().item(),
+                        }
+                    else:
+                        data = {
+                            "critic/vf_loss": vf_loss.detach().item(),
+                            "critic/vf_clipfrac": vf_clipfrac.detach().item(),
+                            "critic/vpred_mean": masked_mean(vpreds, response_mask).detach().item(),
+                        }
 
                     append_to_dict(metrics, data)
 

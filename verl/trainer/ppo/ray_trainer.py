@@ -98,6 +98,7 @@ class AdvantageEstimator(str, Enum):
     PROGRESS_VALUE = "progress_value"
     SAO_SKIP_OBSERVATION = "sao_skip_observation"
     DUAL_CRITIC_HYBRID = "dual_critic_hybrid"
+    LUNA_UNIFIED = "luna_unified"
 
 
 def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
@@ -320,7 +321,10 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         )
         data.batch["advantages"] = advantages
         data.batch["returns"] = returns
-    elif adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID:
+    elif adv_estimator in (
+        AdvantageEstimator.DUAL_CRITIC_HYBRID,
+        AdvantageEstimator.LUNA_UNIFIED,
+    ):
         hybrid_advantage_cfg = hybrid_advantage_cfg or {}
         advantages, returns, turn_returns, turn_value_mask, turn_advantages, token_residuals = core_algos.compute_dual_critic_hybrid_gae(
             token_level_rewards=data.batch["token_level_rewards"],
@@ -529,6 +533,7 @@ class RayPPOTrainer:
             AdvantageEstimator.GAE,
             AdvantageEstimator.SAO_SKIP_OBSERVATION,
             AdvantageEstimator.DUAL_CRITIC_HYBRID,
+            AdvantageEstimator.LUNA_UNIFIED,
         ]:
             self.use_critic = True
         elif self.config.algorithm.adv_estimator in [
@@ -546,8 +551,11 @@ class RayPPOTrainer:
             raise NotImplementedError
 
         self.use_turn_critic = self.config.algorithm.adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID
+        self.use_unified_luna = self.config.algorithm.adv_estimator == AdvantageEstimator.LUNA_UNIFIED
         if self.use_turn_critic and Role.TurnCritic not in role_worker_mapping:
             raise ValueError("dual_critic_hybrid requires a TurnCritic worker")
+        if self.use_unified_luna and int(self.config.critic.model.get("num_value_heads", 1)) != 2:
+            raise ValueError("luna_unified requires critic.model.num_value_heads=2")
 
         self._validate_config()
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
@@ -1380,7 +1388,17 @@ class RayPPOTrainer:
                     if self.use_critic:
                         with _timer("values", timing_raw):
                             values = self.critic_wg.compute_values(batch)
-                            batch = batch.union(values)
+                            if self.use_unified_luna:
+                                unified_values = values.batch["values"]
+                                if unified_values.ndim != 3 or unified_values.size(-1) != 2:
+                                    raise ValueError(
+                                        "luna_unified expects critic values shaped "
+                                        f"[batch, response_length, 2], got {tuple(unified_values.shape)}"
+                                    )
+                                batch.batch["values"] = unified_values[..., 0]
+                                batch.batch["turn_values"] = unified_values[..., 1]
+                            else:
+                                batch = batch.union(values)
 
                     if self.use_turn_critic:
                         with _timer("turn_values", timing_raw):
@@ -1435,7 +1453,7 @@ class RayPPOTrainer:
                             hybrid_advantage_cfg=self.config.algorithm.get("hybrid_advantage", {}),
                         )
 
-                        if self.use_turn_critic:
+                        if self.use_turn_critic or self.use_unified_luna:
                             response_mask = batch.batch["response_mask"]
                             turn_mask = batch.batch["turn_value_mask"]
                             turn_advantages = batch.batch["turn_advantages"]
