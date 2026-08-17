@@ -348,6 +348,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         advantages, returns, turn_advantages, token_advantages, turn_returns = core_algos.compute_hygae_unified_gae(
             token_level_rewards=data.batch["token_level_rewards"],
             values=data.batch["values"],
+            turn_end_values=data.batch["turn_end_values"],
             response_mask=data.batch["response_mask"],
             traj_index=data.non_tensor_batch["traj_uid"],
             step_id=data.non_tensor_batch["step_id"],
@@ -1388,7 +1389,6 @@ class RayPPOTrainer:
                                     "training/rollout_probs_diff_std": rollout_probs_diff_std.detach().item(),
                                 }
                             )
-
                     if self.use_reference_policy:
                         # compute reference log_prob
                         with _timer("ref", timing_raw):
@@ -1462,13 +1462,30 @@ class RayPPOTrainer:
                             response_mask = batch.batch["response_mask"]
                             hygae_turn_advantages = batch.batch["hygae_turn_advantages"]
                             hygae_token_advantages = batch.batch["hygae_token_advantages"]
+                            selected_turn_advantages = torch.masked_select(hygae_turn_advantages, response_mask.bool())
+                            selected_token_advantages = torch.masked_select(hygae_token_advantages, response_mask.bool())
+                            centered_turn = selected_turn_advantages - selected_turn_advantages.mean()
+                            centered_token = selected_token_advantages - selected_token_advantages.mean()
+                            advantage_correlation = (centered_turn * centered_token).mean() / (
+                                torch.sqrt(centered_turn.square().mean() * centered_token.square().mean()) + 1e-8
+                            )
+                            turn_end_mask = batch.batch["hygae_turn_end_mask"].bool()
+                            pre_final_values = torch.masked_select(batch.batch["values"], turn_end_mask)
+                            turn_end_values = batch.batch["turn_end_values"]
                             metrics.update(
                                 {
                                     "hygae/turn_advantage_rms": torch.sqrt(masked_mean(hygae_turn_advantages.square(), response_mask)).item(),
                                     "hygae/token_advantage_rms": torch.sqrt(masked_mean(hygae_token_advantages.square(), response_mask)).item(),
+                                    "hygae/turn_token_advantage_correlation": advantage_correlation.item(),
+                                    "hygae/turn_end_value_mean": turn_end_values.mean().item(),
+                                    "hygae/pre_final_value_mean": pre_final_values.mean().item(),
+                                    "hygae/turn_end_alignment_gap_rms": torch.sqrt(
+                                        (turn_end_values - pre_final_values).square().mean()
+                                    ).item(),
                                     "hygae/mixed_return_mean": masked_mean(batch.batch["returns"], response_mask).item(),
                                 }
                             )
+                            batch.batch["values"] = batch.batch["hygae_critic_values"]
 
                         if self.use_turn_critic:
                             response_mask = batch.batch["response_mask"]

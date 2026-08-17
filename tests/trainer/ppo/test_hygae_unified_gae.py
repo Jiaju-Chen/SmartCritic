@@ -9,6 +9,7 @@ def compute(
     values,
     mask,
     *,
+    turn_end_values=None,
     traj_index=None,
     step_id=None,
     token_gamma=1.0,
@@ -22,9 +23,13 @@ def compute(
         traj_index = np.asarray(["trajectory-0"] * batch_size, dtype=object)
     if step_id is None:
         step_id = np.arange(batch_size, dtype=np.int32)
+    if turn_end_values is None:
+        last_valid = mask.sum(dim=-1).to(dtype=torch.long).clamp_min(1) - 1
+        turn_end_values = values.gather(1, last_valid.unsqueeze(-1)).squeeze(-1)
     return compute_hygae_unified_gae(
         token_level_rewards=rewards,
         values=values,
+        turn_end_values=turn_end_values,
         response_mask=mask,
         traj_index=traj_index,
         step_id=step_id,
@@ -53,13 +58,17 @@ def test_uses_final_token_value_and_mixes_advantage_and_return():
     torch.testing.assert_close(returns, torch.tensor([[1.35, 1.0]]))
 
 
-def test_turn_value_is_not_first_token_or_turn_mean():
+def test_turn_value_uses_explicit_post_turn_value():
     rewards = torch.tensor([[0.0, 1.0]])
-    values = torch.tensor([[9.0, 0.25]])
+    values = torch.tensor([[9.0, 8.0]])
     mask = torch.ones_like(rewards)
 
     advantages, _, turn_advantages, _, _ = compute(
-        rewards, values, mask, alpha=1.0
+        rewards,
+        values,
+        mask,
+        turn_end_values=torch.tensor([0.25]),
+        alpha=1.0,
     )
 
     expected = torch.tensor([[0.75, 0.75]])
@@ -118,7 +127,7 @@ def test_rejects_invalid_mixing_coefficient():
 
 if __name__ == "__main__":
     test_uses_final_token_value_and_mixes_advantage_and_return()
-    test_turn_value_is_not_first_token_or_turn_mean()
+    test_turn_value_uses_explicit_post_turn_value()
     test_terminal_reward_propagates_across_environment_turns()
     test_turn_discount_matches_generated_token_length()
     test_rejects_invalid_mixing_coefficient()

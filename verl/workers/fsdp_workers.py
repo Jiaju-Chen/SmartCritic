@@ -1068,8 +1068,24 @@ class CriticWorker(Worker):
         # perform forward computation
         with self.ulysses_sharding_manager:
             data = self.ulysses_sharding_manager.preprocess_data(data=data)
-            values = self.critic.compute_values(data=data)
-            output = DataProto.from_dict(tensors={"values": values})
+            token_values, turn_end_values = self.critic.compute_values(data=data)
+            responses = data.batch["responses"]
+            response_mask = data.batch["attention_mask"][:, -responses.size(1) :]
+            from verl.workers.critic.dp_critic import replace_last_valid_response_value
+
+            critic_values, turn_end_mask = replace_last_valid_response_value(
+                token_values=token_values,
+                turn_end_values=turn_end_values,
+                response_mask=response_mask,
+            )
+            output = DataProto.from_dict(
+                tensors={
+                    "values": token_values,
+                    "turn_end_values": turn_end_values,
+                    "hygae_critic_values": critic_values,
+                    "hygae_turn_end_mask": turn_end_mask,
+                }
+            )
             output = self.ulysses_sharding_manager.postprocess_data(data=output)
 
         output = output.to("cpu")

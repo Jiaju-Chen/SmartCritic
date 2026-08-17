@@ -45,6 +45,58 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
+def extract_response_value_views(full_values, attention_mask, response_length):
+    """Return pre-token values and the value after the final response token."""
+    if full_values.ndim != 2 or attention_mask.ndim != 2:
+        raise ValueError("full_values and attention_mask must be rank-2 tensors")
+    if full_values.shape != attention_mask.shape:
+        raise ValueError(
+            "full_values and attention_mask must have the same shape; "
+            f"got {full_values.shape} and {attention_mask.shape}"
+        )
+    if response_length <= 0 or response_length >= full_values.size(1):
+        raise ValueError(
+            "response_length must be positive and smaller than sequence length; "
+            f"got {response_length} for sequence length {full_values.size(1)}"
+        )
+
+    response_mask = attention_mask[:, -response_length:].to(dtype=full_values.dtype)
+    token_values = full_values[:, -response_length - 1 : -1] * response_mask
+
+    valid_lengths = response_mask.sum(dim=-1).to(dtype=torch.long)
+    response_start = full_values.size(1) - response_length
+    turn_end_indices = response_start + valid_lengths.clamp_min(1) - 1
+    turn_end_values = full_values.gather(1, turn_end_indices.unsqueeze(-1)).squeeze(-1)
+    turn_end_values = turn_end_values * (valid_lengths > 0).to(dtype=full_values.dtype)
+    return token_values, turn_end_values
+
+
+def replace_last_valid_response_value(token_values, turn_end_values, response_mask):
+    """Use the post-turn prediction at the final valid response position."""
+    if token_values.shape != response_mask.shape:
+        raise ValueError(
+            "token_values and response_mask must have the same shape; "
+            f"got {token_values.shape} and {response_mask.shape}"
+        )
+    if turn_end_values.shape != (token_values.shape[0],):
+        raise ValueError(
+            "turn_end_values must contain one value per batch row; "
+            f"got {turn_end_values.shape}"
+        )
+
+    valid_lengths = response_mask.sum(dim=-1).to(dtype=torch.long)
+    has_response = valid_lengths > 0
+    last_valid = valid_lengths.clamp_min(1) - 1
+    turn_end_mask = torch.zeros_like(response_mask, dtype=torch.bool)
+    turn_end_mask.scatter_(1, last_valid.unsqueeze(-1), has_response.unsqueeze(-1))
+    critic_values = torch.where(
+        turn_end_mask,
+        turn_end_values.unsqueeze(-1).to(dtype=token_values.dtype),
+        token_values,
+    )
+    return critic_values, turn_end_mask
+
+
 class DataParallelPPOCritic(BasePPOCritic):
     def __init__(self, config, critic_module: nn.Module, critic_optimizer: optim.Optimizer):
         super().__init__(config=config)
@@ -101,8 +153,7 @@ class DataParallelPPOCritic(BasePPOCritic):
                     values_rmpad = gather_outpus_and_unpad(values_rmpad, gather_dim=0, unpad_dim=0, padding_size=pad_size)
 
                 # pad it back
-                values = pad_input(values_rmpad, indices=indices, batch=batch, seqlen=seqlen).squeeze(-1)
-                values = values[:, -response_length - 1 : -1]
+                full_values = pad_input(values_rmpad, indices=indices, batch=batch, seqlen=seqlen).squeeze(-1)
             else:
                 output = self.critic_module(
                     input_ids=input_ids,
@@ -111,9 +162,12 @@ class DataParallelPPOCritic(BasePPOCritic):
                     **multi_modal_inputs,
                     use_cache=False,
                 )  # prevent model thinks we are generating
-                values = output.logits
-                values = values[:, -response_length - 1 : -1].squeeze(-1)
-            return values
+                full_values = output.logits.squeeze(-1)
+            return extract_response_value_views(
+                full_values=full_values,
+                attention_mask=attention_mask,
+                response_length=response_length,
+            )
 
     def _optimizer_step(self):
         assert self.config.grad_clip is not None
@@ -134,7 +188,7 @@ class DataParallelPPOCritic(BasePPOCritic):
         return grad_norm
 
     @GPUMemoryLogger(role="dp critic", logger=logger)
-    def compute_values(self, data: DataProto) -> torch.Tensor:
+    def compute_values(self, data: DataProto) -> tuple[torch.Tensor, torch.Tensor]:
         self.critic_module.eval()
         micro_batch_size = data.meta_info["micro_batch_size"]
         select_keys = ["responses", "input_ids", "attention_mask", "position_ids"]
@@ -153,26 +207,26 @@ class DataParallelPPOCritic(BasePPOCritic):
         else:
             micro_batches = batch.split(micro_batch_size)
 
-        values_lst = []
+        token_values_lst = []
+        turn_end_values_lst = []
         for micro_batch in micro_batches:
             if isinstance(micro_batch, DataProto):
                 micro_batch = {**micro_batch.batch, **micro_batch.non_tensor_batch}
 
             with torch.no_grad():
-                values = self._forward_micro_batch(micro_batch)
-            values_lst.append(values)
-        values = torch.concat(values_lst, dim=0)
-        responses = data.batch["responses"]
-        attention_mask = data.batch["attention_mask"]
-        response_length = responses.size(1)
+                token_values, turn_end_values = self._forward_micro_batch(micro_batch)
+            token_values_lst.append(token_values)
+            turn_end_values_lst.append(turn_end_values)
+        token_values = torch.concat(token_values_lst, dim=0)
+        turn_end_values = torch.concat(turn_end_values_lst, dim=0)
 
         if use_dynamic_bsz:
             indices = list(itertools.chain.from_iterable(indices))
-            assert len(indices) == values.size(0), f"{len(indices)} vs. {values.size()}"
+            assert len(indices) == token_values.size(0), f"{len(indices)} vs. {token_values.size()}"
             revert_indices = torch.tensor(get_reverse_idx(indices), dtype=torch.long)
-            values = values[revert_indices]
-        values = values * attention_mask[:, -response_length - 1 : -1]
-        return values
+            token_values = token_values[revert_indices]
+            turn_end_values = turn_end_values[revert_indices]
+        return token_values, turn_end_values
 
     @GPUMemoryLogger(role="dp critic", logger=logger)
     def update_critic(self, data: DataProto):
@@ -183,6 +237,8 @@ class DataParallelPPOCritic(BasePPOCritic):
         select_keys = ["input_ids", "responses", "attention_mask", "position_ids", "values", "returns"]
         if "value_mask" in data.batch:
             select_keys.append("value_mask")
+        if "hygae_turn_end_mask" in data.batch:
+            select_keys.append("hygae_turn_end_mask")
         batch = data.select(batch_keys=select_keys).batch
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
@@ -225,10 +281,18 @@ class DataParallelPPOCritic(BasePPOCritic):
 
                     response_mask = data.get(
                         "value_mask",
-                        attention_mask[:, -response_length - 1 : -1],
+                        attention_mask[:, -response_length:],
                     )
 
-                    vpreds = self._forward_micro_batch(data)
+                    token_vpreds, turn_end_vpreds = self._forward_micro_batch(data)
+                    if "hygae_turn_end_mask" in data:
+                        vpreds = torch.where(
+                            data["hygae_turn_end_mask"].bool(),
+                            turn_end_vpreds.unsqueeze(-1).to(dtype=token_vpreds.dtype),
+                            token_vpreds,
+                        )
+                    else:
+                        vpreds = token_vpreds
 
                     # assert not torch.any(torch.isnan(vpreds)).item()
 

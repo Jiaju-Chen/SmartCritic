@@ -193,6 +193,7 @@ def compute_sao_skip_observation_gae(
 def compute_hygae_unified_gae(
     token_level_rewards: torch.Tensor,
     values: torch.Tensor,
+    turn_end_values: torch.Tensor,
     response_mask: torch.Tensor,
     traj_index: np.ndarray,
     step_id: np.ndarray,
@@ -206,15 +207,20 @@ def compute_hygae_unified_gae(
     """Estimate HyGAE advantages and returns with one shared value model.
 
     Token GAE follows the generated-token trajectory while skipping environment
-    observations. Turn GAE reads the same critic at the final valid token of each
-    environment action. The mixed return follows Eq. 16-17 of HyGAE, so the actor
-    and the unified critic use the same turn/token mixing coefficient.
+    observations. Turn GAE reads the same critic after the final valid token of
+    each environment action. The mixed return follows Eq. 16-17 of HyGAE, so the
+    actor and the unified critic use the same turn/token mixing coefficient.
     """
     if token_level_rewards.shape != values.shape or values.shape != response_mask.shape:
         raise ValueError(
             "HyGAE expects rewards, values, and response_mask to have the same "
             f"shape; got {token_level_rewards.shape}, {values.shape}, "
             f"{response_mask.shape}"
+        )
+    if turn_end_values.shape != (values.shape[0],):
+        raise ValueError(
+            "HyGAE expects one post-turn value per batch row; "
+            f"got {turn_end_values.shape} for batch size {values.shape[0]}"
         )
     if not 0.0 <= float(alpha) <= 1.0:
         raise ValueError(f"HyGAE alpha must be in [0, 1], got {alpha}")
@@ -261,10 +267,8 @@ def compute_hygae_unified_gae(
                 if valid_positions.numel() == 0:
                     continue
 
-                # HyGAE identifies the turn value with the unified critic value
-                # at the final generated-token position of the turn.
                 boundary_position = int(valid_positions[-1])
-                current_turn_value = values[row, boundary_position]
+                current_turn_value = turn_end_values[row]
                 turn_reward = token_level_rewards[row, valid_positions].sum()
                 if length_matched_turn_gamma:
                     turn_gamma = token_gamma_value ** int(valid_positions.numel())
