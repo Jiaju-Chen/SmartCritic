@@ -13,8 +13,9 @@ if [[ ! -f "$CKPT_DIR/latest_checkpointed_iteration.txt" || ! -d "$CKPT_DIR/late
   exit 1
 fi
 
-if [[ "$(<"$CKPT_DIR/latest_checkpointed_iteration.txt")" != "10" ]]; then
-  echo "expected latest checkpoint at step 10" >&2
+LATEST_STEP=$(<"$CKPT_DIR/latest_checkpointed_iteration.txt")
+if [[ ! "$LATEST_STEP" =~ ^[0-9]+$ ]] || (( LATEST_STEP < 10 || LATEST_STEP >= 150 )); then
+  echo "expected latest checkpoint in steps 10 through 149, found: $LATEST_STEP" >&2
   exit 1
 fi
 
@@ -29,7 +30,7 @@ tmux new-session -d -s "$SESSION" \
 
 echo "session=$SESSION"
 echo "resume_from=$CKPT_DIR/latest"
-echo "resume_step=$(<"$CKPT_DIR/latest_checkpointed_iteration.txt")"
+echo "resume_step=$LATEST_STEP"
 echo "target_step=150"
 echo "log=$RUN_DIR/logs/resume150.tmux.log"
 echo "wandb=https://wandb.ai/cjj01-ustc/verl_agent_alfworld_critic_ablation/runs/$WANDB_RUN_ID"
