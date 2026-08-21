@@ -101,8 +101,8 @@ class AdvantageEstimator(str, Enum):
     LUNA_UNIFIED = "luna_unified"
 
 
-def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
-    """Read deterministic ALFWorld game indexes from a collated validation batch."""
+def extract_environment_indices(batch: DataProto) -> np.ndarray:
+    """Read deterministic environment indexes from a collated validation batch."""
     indexes = batch.batch.get("index")
     if indexes is not None:
         indexes = indexes.detach().cpu().numpy()
@@ -114,12 +114,12 @@ def extract_alfworld_game_indices(batch: DataProto) -> np.ndarray:
             indexes = [extra_info["index"] for extra_info in extra_infos]
 
     if indexes is None:
-        raise KeyError("Indexed ALFWorld validation requires index or extra_info.index")
+        raise KeyError("Indexed validation requires index or extra_info.index")
 
     indexes = np.asarray(indexes, dtype=np.int64).reshape(-1)
     if len(indexes) != len(batch):
         raise ValueError(
-            "Indexed ALFWorld validation requires one game index per sample; "
+            "Indexed validation requires one environment index per sample; "
             f"got {len(indexes)} indexes for batch size {len(batch)}"
         )
     return indexes
@@ -834,9 +834,15 @@ class RayPPOTrainer:
             input_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in input_ids]
             sample_inputs.extend(input_texts)
 
-            game_indices = None
-            if "alfworld" in self.config.env.env_name.lower():
-                game_indices = extract_alfworld_game_indices(test_batch)
+            environment_indices = None
+            environment_index_key = None
+            env_name = self.config.env.env_name.lower()
+            if "alfworld" in env_name:
+                environment_indices = extract_environment_indices(test_batch)
+                environment_index_key = "game_index"
+            elif "webshop" in env_name:
+                environment_indices = extract_environment_indices(test_batch)
+                environment_index_key = "goal_index"
 
             batch_keys_to_pop = ["input_ids", "attention_mask", "position_ids"]
             non_tensor_batch_keys_to_pop = ["raw_prompt_ids", "data_source"]
@@ -853,9 +859,12 @@ class RayPPOTrainer:
                 non_tensor_batch_keys=non_tensor_batch_keys_to_pop,
             )
 
-            if game_indices is not None:
+            if environment_indices is not None:
                 test_gen_batch.non_tensor_batch["env_kwargs"] = np.asarray(
-                    [{"game_index": int(index)} for index in game_indices],
+                    [
+                        {environment_index_key: int(index)}
+                        for index in environment_indices
+                    ],
                     dtype=object,
                 )
 
