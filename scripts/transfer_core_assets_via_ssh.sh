@@ -93,6 +93,35 @@ transfer_directory() {
   fi
 }
 
+transfer_webshop_resources() {
+  local source_q destination_q source_command destination_command
+  source_q=$(shell_quote "$SOURCE_WEBSHOP")
+  destination_q=$(shell_quote "$DEST_WEBSHOP")
+  source_command="set -o pipefail; \
+test -s $source_q/data/items_shuffle_1000.json && \
+test -s $source_q/data/items_ins_v2_1000.json && \
+tar --dereference -C $source_q -cf - \
+data/items_shuffle_1000.json \
+data/items_ins_v2_1000.json \
+search_engine/indexes \
+search_engine/indexes_100 \
+search_engine/indexes_1k \
+search_engine/indexes_100k | zstd -T0 -1 -c"
+  destination_command="set -o pipefail; mkdir -p $destination_q && zstd -d -c | tar -C $destination_q -xf -"
+
+  echo "Transferring WebShop resources required by env.webshop.use_small=True"
+  echo "  source:      $SOURCE_HOST:$SOURCE_WEBSHOP"
+  echo "  destination: $DEST_HOST:$DEST_WEBSHOP"
+  if command -v pv >/dev/null 2>&1; then
+    ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "$source_command" \
+      | pv -brt \
+      | ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
+  else
+    ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "$source_command" \
+      | ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
+  fi
+}
+
 model_is_current() {
   local source_q destination_q source_hash destination_hash
   source_q=$(shell_quote "$SOURCE_MODEL/model.safetensors")
@@ -127,7 +156,10 @@ verify_layout() {
   ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" \
     "test -s $(shell_quote "$DEST_MODEL/config.json") && \
      test -d $(shell_quote "$DEST_ALFWORLD/json_2.1.1") && \
-     test -d $(shell_quote "$DEST_WEBSHOP/search_engine") && \
+     test -s $(shell_quote "$DEST_WEBSHOP/data/items_shuffle_1000.json") && \
+     test -s $(shell_quote "$DEST_WEBSHOP/data/items_ins_v2_1000.json") && \
+     test -d $(shell_quote "$DEST_WEBSHOP/search_engine/indexes") && \
+     test -d $(shell_quote "$DEST_WEBSHOP/search_engine/indexes_1k") && \
      test ! -e $webshop_key_q && \
      du -sh $root_q/models $root_q/datasets"
   echo "Core asset layout verified; WebShop private key was not transferred."
@@ -148,7 +180,7 @@ else
 fi
 verify_model
 transfer_directory "ALFWorld data" "$SOURCE_ALFWORLD" "$DEST_ALFWORLD" "" "zstd"
-transfer_directory "WebShop resources" "$SOURCE_WEBSHOP" "$DEST_WEBSHOP" "./id_ed25519_xx" "zstd"
+transfer_webshop_resources
 verify_layout
 
 echo "Core SmartCritic assets are available under: $DEST_ROOT"

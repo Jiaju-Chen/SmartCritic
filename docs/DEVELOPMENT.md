@@ -110,12 +110,12 @@ bash scripts/transfer_core_assets_via_ssh.sh
 ```
 
 The script streams data from yun-my8card through the Mac directly into SAIDS;
-it does not create a local copy. It transfers approximately 10.5 GB:
+it does not create a local copy. It transfers approximately 4.6 GB:
 
 ```text
 Qwen2.5-1.5B-Instruct  2.9 GB
 ALFWorld data          1.7 GB
-WebShop resources      5.9 GB
+WebShop small resources  about 30 MB
 ```
 
 The destination layout is:
@@ -126,10 +126,14 @@ The destination layout is:
 /data2/group_何向南/chenjiaju/luna/shared/datasets/webshop
 ```
 
-The WebShop source directory contains a host-specific private key that is not a
-dataset dependency. The transfer script explicitly excludes it and verifies
-that it is absent on SAIDS. The Hugging Face snapshot uses symlinks, so the
-script dereferences them and verifies the transferred model weight checksum.
+Current SmartCritic runs set `env.webshop.use_small=True`. The transfer therefore
+copies only `items_shuffle_1000.json`, `items_ins_v2_1000.json`, and the required
+search indexes. It does not copy the unused 5.3 GB full-product JSON file,
+spaCy wheels, or baseline artifacts. The WebShop source directory also contains
+a host-specific private key that is not a dataset dependency; it is never
+selected for transfer, and the script verifies that it is absent on SAIDS. The
+Hugging Face snapshot uses symlinks, so the script dereferences them and verifies
+the transferred model weight checksum.
 
 When SAIDS is reachable only through a Codex-created SSH multiplexing tunnel,
 the script automatically discovers an active
