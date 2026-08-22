@@ -52,3 +52,7 @@ eight-GPU A100 training job with an `afterok` dependency:
 ```bash
 bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids.sh
 ```
+
+SAIDS records W&B offline because its compute network cannot reach
+`api.wandb.ai`. The run directory lives under the shared run root and can be
+synced from the eight-GPU server or a connected workstation after training.

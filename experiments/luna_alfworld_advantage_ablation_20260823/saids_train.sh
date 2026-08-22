@@ -23,7 +23,7 @@ export ORIGINAL_HOME=${ORIGINAL_HOME:-/home/chenjiaju}
 export RAY_TMP_ROOT=$LOCAL_ROOT/ray
 export FAST_TMP_ROOT=$LOCAL_ROOT/tmp
 export WANDB_RUN_ID=${WANDB_RUN_ID:-lunadirectalf_s_0823}
-export WANDB_MODE=${WANDB_MODE:-online}
+export WANDB_MODE=${WANDB_MODE:-offline}
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 
 cd "$PROJECT_ROOT"
