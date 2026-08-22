@@ -202,15 +202,19 @@ def compute_dual_critic_hybrid_gae(
     turn_gamma: float,
     turn_lam: float,
     token_residual_scale: float = 1.0,
+    composition_mode: str = "residual",
     whiten_advantages: bool = True,
 ):
     """Combine skip-observation token credit with a separate turn critic.
 
-    The token critic supplies within-turn residual credit. The turn critic is
-    evaluated at the first generated-token position, whose hidden state is
-    aligned with the observation boundary immediately before the action. The
-    resulting actor advantage has the turn advantage as its within-turn mean,
-    while retaining differences among tokens inside the action.
+    The token critic supplies within-turn credit. The turn critic is evaluated
+    at the first generated-token position, whose hidden state is aligned with
+    the observation boundary immediately before the action.
+
+    ``composition_mode`` isolates the actor-credit ablations while leaving both
+    critic targets unchanged: ``residual`` uses centered token credit (Luna),
+    ``direct`` uses uncentered token credit, and the two ``*_only`` modes select
+    one branch without changing critic training.
     """
     shapes = {
         token_level_rewards.shape,
@@ -284,7 +288,19 @@ def compute_dual_critic_hybrid_gae(
             row_advantages = token_advantages[row, valid_positions]
             token_residuals[row, valid_positions] = row_advantages - row_advantages.mean()
 
-        hybrid_advantages = turn_advantages + float(token_residual_scale) * token_residuals
+        if composition_mode == "residual":
+            hybrid_advantages = turn_advantages + float(token_residual_scale) * token_residuals
+        elif composition_mode == "direct":
+            hybrid_advantages = turn_advantages + float(token_residual_scale) * token_advantages
+        elif composition_mode == "token_only":
+            hybrid_advantages = token_advantages
+        elif composition_mode == "turn_only":
+            hybrid_advantages = turn_advantages
+        else:
+            raise ValueError(
+                "Unsupported hybrid advantage composition_mode "
+                f"{composition_mode!r}; expected residual, direct, token_only, or turn_only"
+            )
         if whiten_advantages:
             hybrid_advantages = verl_F.masked_whiten(hybrid_advantages, response_mask)
 

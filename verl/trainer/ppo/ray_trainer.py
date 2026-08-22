@@ -338,6 +338,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             turn_gamma=hybrid_advantage_cfg.get("turn_gamma", 1.0),
             turn_lam=hybrid_advantage_cfg.get("turn_lam", 0.95),
             token_residual_scale=hybrid_advantage_cfg.get("token_residual_scale", 1.0),
+            composition_mode=hybrid_advantage_cfg.get("composition_mode", "residual"),
             whiten_advantages=hybrid_advantage_cfg.get("whiten_advantages", True),
         )
         data.batch["advantages"] = advantages

@@ -319,6 +319,7 @@ algorithm:
     turn_gamma: 1.0
     turn_lam: 0.95
     token_residual_scale: 1.0
+    composition_mode: residual # residual, direct, token_only, or turn_only
     whiten_advantages: True
   filter_groups: # DAPO from https://arxiv.org/abs/2503.14476
     enable: False

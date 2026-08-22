@@ -1,7 +1,10 @@
+import numpy as np
+import pytest
 import torch
 from omegaconf import OmegaConf
 from types import SimpleNamespace
 
+from verl.trainer.ppo import core_algos
 from verl.trainer.ppo.core_algos import compute_luna_unified_value_loss
 from verl.workers.critic.dp_critic import DataParallelPPOCritic
 
@@ -83,3 +86,68 @@ def test_two_head_critic_returns_both_values_from_one_forward():
         values.float(),
         torch.tensor([[[2.0, 12.0], [3.0, 13.0]]]),
     )
+
+
+@pytest.mark.parametrize(
+    ("composition_mode", "expected"),
+    [
+        ("residual", [[1.0, 3.0, 0.0], [3.0, 7.0, 0.0]]),
+        ("direct", [[3.0, 5.0, 0.0], [7.0, 11.0, 0.0]]),
+        ("token_only", [[1.0, 3.0, 0.0], [2.0, 6.0, 0.0]]),
+        ("turn_only", [[2.0, 2.0, 0.0], [5.0, 5.0, 0.0]]),
+    ],
+)
+def test_luna_actor_advantage_composition_modes(monkeypatch, composition_mode, expected):
+    token_advantages = torch.tensor(
+        [[1.0, 3.0, 0.0], [2.0, 6.0, 0.0]],
+    )
+
+    def fake_token_gae(**_kwargs):
+        return token_advantages.clone(), torch.zeros_like(token_advantages)
+
+    monkeypatch.setattr(core_algos, "compute_sao_skip_observation_gae", fake_token_gae)
+    rewards = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0]])
+    response_mask = torch.tensor([[1.0, 1.0, 0.0], [1.0, 1.0, 0.0]])
+
+    advantages, *_ = core_algos.compute_dual_critic_hybrid_gae(
+        token_level_rewards=rewards,
+        token_values=torch.zeros_like(rewards),
+        turn_values=torch.zeros_like(rewards),
+        response_mask=response_mask,
+        traj_index=np.array(["trajectory", "trajectory"]),
+        step_id=np.array([0, 1]),
+        token_gamma=1.0,
+        token_lam=1.0,
+        turn_gamma=0.0,
+        turn_lam=0.0,
+        token_residual_scale=1.0,
+        composition_mode=composition_mode,
+        whiten_advantages=False,
+    )
+
+    torch.testing.assert_close(advantages, torch.tensor(expected))
+
+
+def test_luna_actor_advantage_rejects_unknown_composition(monkeypatch):
+    token_advantages = torch.tensor([[1.0, 3.0]])
+    monkeypatch.setattr(
+        core_algos,
+        "compute_sao_skip_observation_gae",
+        lambda **_kwargs: (token_advantages, torch.zeros_like(token_advantages)),
+    )
+
+    with pytest.raises(ValueError, match="Unsupported hybrid advantage composition_mode"):
+        core_algos.compute_dual_critic_hybrid_gae(
+            token_level_rewards=torch.tensor([[1.0, 0.0]]),
+            token_values=torch.zeros((1, 2)),
+            turn_values=torch.zeros((1, 2)),
+            response_mask=torch.ones((1, 2)),
+            traj_index=np.array(["trajectory"]),
+            step_id=np.array([0]),
+            token_gamma=1.0,
+            token_lam=1.0,
+            turn_gamma=1.0,
+            turn_lam=0.95,
+            composition_mode="unknown",
+            whiten_advantages=False,
+        )
