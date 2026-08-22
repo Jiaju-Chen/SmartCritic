@@ -6,6 +6,7 @@ set -Eeuo pipefail
 SOURCE_HOST=${SOURCE_HOST:-yun-my8card-vscode}
 DEST_HOST=${DEST_HOST:-SAIDS}
 DEST_ROOT=${DEST_ROOT:-/data2/group_何向南/chenjiaju/luna/shared}
+DEST_CONTROL_PATH=${DEST_CONTROL_PATH:-}
 
 SOURCE_MODEL=${SOURCE_MODEL:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 SOURCE_ALFWORLD=${SOURCE_ALFWORLD:-/home/dataset-local/cjj/RL/alfworld_data}
@@ -16,6 +17,7 @@ DEST_ALFWORLD=$DEST_ROOT/datasets/alfworld_data
 DEST_WEBSHOP=$DEST_ROOT/datasets/webshop
 
 SSH_OPTIONS=(-o ServerAliveInterval=30 -o ServerAliveCountMax=6)
+DEST_SSH_OPTIONS=()
 
 shell_quote() {
   printf '%q' "$1"
@@ -25,6 +27,33 @@ check_connection() {
   local host=$1
   echo "Checking SSH connection: $host"
   ssh "${SSH_OPTIONS[@]}" "$host" true
+}
+
+configure_destination_ssh() {
+  local candidate
+  if [[ -z "$DEST_CONTROL_PATH" && "$DEST_HOST" == "SAIDS" ]]; then
+    for candidate in "$HOME"/.ssh/codex-saids-control-*; do
+      [[ -S "$candidate" ]] || continue
+      if ssh -S "$candidate" -O check "$DEST_HOST" >/dev/null 2>&1; then
+        DEST_CONTROL_PATH=$candidate
+      fi
+    done
+  fi
+
+  DEST_SSH_OPTIONS=("${SSH_OPTIONS[@]}")
+  if [[ -n "$DEST_CONTROL_PATH" ]]; then
+    if ! ssh -S "$DEST_CONTROL_PATH" -O check "$DEST_HOST" >/dev/null 2>&1; then
+      echo "SSH control socket is not active: $DEST_CONTROL_PATH" >&2
+      return 1
+    fi
+    DEST_SSH_OPTIONS+=(-S "$DEST_CONTROL_PATH" -o ControlMaster=no)
+    echo "Using SSH control socket for $DEST_HOST: $DEST_CONTROL_PATH"
+  fi
+}
+
+check_destination_connection() {
+  echo "Checking SSH connection: $DEST_HOST"
+  ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" true
 }
 
 transfer_directory() {
@@ -49,10 +78,10 @@ transfer_directory() {
   if command -v pv >/dev/null 2>&1; then
     ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "$source_command" \
       | pv -brt \
-      | ssh "${SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
+      | ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
   else
     ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "$source_command" \
-      | ssh "${SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
+      | ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
   fi
 }
 
@@ -63,7 +92,7 @@ verify_model() {
   source_q=$(shell_quote "$source_file")
   destination_q=$(shell_quote "$destination_file")
   source_hash=$(ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "sha256sum $source_q | awk '{print \$1}'")
-  destination_hash=$(ssh "${SSH_OPTIONS[@]}" "$DEST_HOST" "sha256sum $destination_q | awk '{print \$1}'")
+  destination_hash=$(ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "sha256sum $destination_q | awk '{print \$1}'")
   if [[ "$source_hash" != "$destination_hash" ]]; then
     echo "Model checksum mismatch" >&2
     return 1
@@ -75,7 +104,7 @@ verify_layout() {
   local root_q webshop_key_q
   root_q=$(shell_quote "$DEST_ROOT")
   webshop_key_q=$(shell_quote "$DEST_WEBSHOP/id_ed25519_xx")
-  ssh "${SSH_OPTIONS[@]}" "$DEST_HOST" \
+  ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" \
     "test -s $(shell_quote "$DEST_MODEL/config.json") && \
      test -d $(shell_quote "$DEST_ALFWORLD/json_2.1.1") && \
      test -d $(shell_quote "$DEST_WEBSHOP/search_engine") && \
@@ -85,7 +114,12 @@ verify_layout() {
 }
 
 check_connection "$SOURCE_HOST"
-check_connection "$DEST_HOST"
+configure_destination_ssh
+check_destination_connection
+if [[ ${PREFLIGHT_ONLY:-0} == 1 ]]; then
+  echo "SSH preflight passed."
+  exit 0
+fi
 
 transfer_directory "Qwen2.5-1.5B-Instruct" "$SOURCE_MODEL" "$DEST_MODEL"
 verify_model

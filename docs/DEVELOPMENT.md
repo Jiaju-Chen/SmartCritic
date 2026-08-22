@@ -131,6 +131,15 @@ dataset dependency. The transfer script explicitly excludes it and verifies
 that it is absent on SAIDS. The Hugging Face snapshot uses symlinks, so the
 script dereferences them and verifies the transferred model weight checksum.
 
+When SAIDS is reachable only through a Codex-created SSH multiplexing tunnel,
+the script automatically discovers an active
+`~/.ssh/codex-saids-control-*` socket. A specific socket can be selected with:
+
+```bash
+DEST_CONTROL_PATH="$HOME/.ssh/codex-saids-control-4" \
+  bash scripts/transfer_core_assets_via_ssh.sh
+```
+
 This script transfers model and environment data only. Python/Conda environments
 must be packed separately with `conda-pack` or rebuilt from an offline package
 bundle; copying a Conda directory to a different absolute path is not reliable.
