@@ -61,6 +61,7 @@ transfer_directory() {
   local source=$2
   local destination=$3
   local exclude=${4:-}
+  local compression=${5:-none}
   local source_q destination_q source_command destination_command
 
   source_q=$(shell_quote "$source")
@@ -71,6 +72,13 @@ transfer_directory() {
     source_command="test -d $source_q && tar --checkpoint=200000 --checkpoint-action=dot --dereference --exclude=$(shell_quote "$exclude") -C $source_q -cf - ."
   fi
   destination_command="mkdir -p $destination_q && tar -C $destination_q -xf -"
+  if [[ "$compression" == "zstd" ]]; then
+    source_command="set -o pipefail; $source_command | zstd -T0 -1 -c"
+    destination_command="set -o pipefail; mkdir -p $destination_q && zstd -d -c | tar -C $destination_q -xf -"
+  elif [[ "$compression" != "none" ]]; then
+    echo "Unsupported transfer compression: $compression" >&2
+    return 1
+  fi
 
   echo "Transferring $label"
   echo "  source:      $SOURCE_HOST:$source"
@@ -83,6 +91,18 @@ transfer_directory() {
     ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "$source_command" \
       | ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "$destination_command"
   fi
+}
+
+model_is_current() {
+  local source_q destination_q source_hash destination_hash
+  source_q=$(shell_quote "$SOURCE_MODEL/model.safetensors")
+  destination_q=$(shell_quote "$DEST_MODEL/model.safetensors")
+  if ! ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "test -s $destination_q"; then
+    return 1
+  fi
+  source_hash=$(ssh "${SSH_OPTIONS[@]}" "$SOURCE_HOST" "sha256sum $source_q | awk '{print \$1}'")
+  destination_hash=$(ssh "${DEST_SSH_OPTIONS[@]}" "$DEST_HOST" "sha256sum $destination_q | awk '{print \$1}'")
+  [[ "$source_hash" == "$destination_hash" ]]
 }
 
 verify_model() {
@@ -121,10 +141,14 @@ if [[ ${PREFLIGHT_ONLY:-0} == 1 ]]; then
   exit 0
 fi
 
-transfer_directory "Qwen2.5-1.5B-Instruct" "$SOURCE_MODEL" "$DEST_MODEL"
+if model_is_current; then
+  echo "Qwen2.5-1.5B-Instruct is already complete; skipping model transfer."
+else
+  transfer_directory "Qwen2.5-1.5B-Instruct" "$SOURCE_MODEL" "$DEST_MODEL"
+fi
 verify_model
-transfer_directory "ALFWorld data" "$SOURCE_ALFWORLD" "$DEST_ALFWORLD"
-transfer_directory "WebShop resources" "$SOURCE_WEBSHOP" "$DEST_WEBSHOP" "./id_ed25519_xx"
+transfer_directory "ALFWorld data" "$SOURCE_ALFWORLD" "$DEST_ALFWORLD" "" "zstd"
+transfer_directory "WebShop resources" "$SOURCE_WEBSHOP" "$DEST_WEBSHOP" "./id_ed25519_xx" "zstd"
 verify_layout
 
 echo "Core SmartCritic assets are available under: $DEST_ROOT"
