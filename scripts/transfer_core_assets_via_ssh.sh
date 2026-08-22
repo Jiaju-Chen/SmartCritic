@@ -37,9 +37,9 @@ transfer_directory() {
   source_q=$(shell_quote "$source")
   destination_q=$(shell_quote "$destination")
 
-  source_command="test -d $source_q && tar --dereference -C $source_q -cf - ."
+  source_command="test -d $source_q && tar --checkpoint=200000 --checkpoint-action=dot --dereference -C $source_q -cf - ."
   if [[ -n "$exclude" ]]; then
-    source_command="test -d $source_q && tar --dereference --exclude=$(shell_quote "$exclude") -C $source_q -cf - ."
+    source_command="test -d $source_q && tar --checkpoint=200000 --checkpoint-action=dot --dereference --exclude=$(shell_quote "$exclude") -C $source_q -cf - ."
   fi
   destination_command="mkdir -p $destination_q && tar -C $destination_q -xf -"
 
@@ -94,4 +94,3 @@ transfer_directory "WebShop resources" "$SOURCE_WEBSHOP" "$DEST_WEBSHOP" "./id_e
 verify_layout
 
 echo "Core SmartCritic assets are available under: $DEST_ROOT"
-
