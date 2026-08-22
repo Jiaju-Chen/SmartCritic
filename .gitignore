@@ -91,6 +91,7 @@ celerybeat-schedule
 
 # dotenv
 .env
+.env.*.local
 
 # virtualenv
 venv/
@@ -118,6 +119,22 @@ ENV/
 # data
 *.parquet
 
+# server-local research assets
+/models/
+/datasets/
+/checkpoints/
+/runs/
+/wandb/
+/envs/
+/hf_cache/
+/ray_results/
+
+# credentials and host-local access configuration
+/.ssh/
+.netrc
+*.pem
+*.key
+
 
 # local logs
 logs
@@ -131,4 +148,3 @@ outputs
 data/
 .tmp
 *ports
-

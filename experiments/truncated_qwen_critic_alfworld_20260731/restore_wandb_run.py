@@ -60,9 +60,9 @@ def validate_history(history: dict[int, dict[str, float]], expected_steps: int) 
 
 
 def load_api_key() -> str:
-    auth = netrc.netrc("/home/batchcom/.netrc").authenticators("api.wandb.ai")
+    auth = netrc.netrc().authenticators("api.wandb.ai")
     if auth is None or not auth[2]:
-        raise RuntimeError("No api.wandb.ai credential found in /home/batchcom/.netrc")
+        raise RuntimeError("No api.wandb.ai credential found in the current user's .netrc")
     return auth[2]
 
 
