@@ -100,9 +100,43 @@ Store only scripts, configuration, compact metric summaries, and documentation
 in Git. A run should remain reproducible from its commit, configuration, random
 seed, and documented external asset versions.
 
+## Offline Asset Transfer
+
+SAIDS does not need direct Internet access. Run the following command on the Mac
+that can SSH to both `yun-my8card-vscode` and `SAIDS`:
+
+```bash
+bash scripts/transfer_core_assets_via_ssh.sh
+```
+
+The script streams data from yun-my8card through the Mac directly into SAIDS;
+it does not create a local copy. It transfers approximately 10.5 GB:
+
+```text
+Qwen2.5-1.5B-Instruct  2.9 GB
+ALFWorld data          1.7 GB
+WebShop resources      5.9 GB
+```
+
+The destination layout is:
+
+```text
+/data2/group_何向南/chenjiaju/luna/shared/models/Qwen2.5-1.5B-Instruct
+/data2/group_何向南/chenjiaju/luna/shared/datasets/alfworld_data
+/data2/group_何向南/chenjiaju/luna/shared/datasets/webshop
+```
+
+The WebShop source directory contains a host-specific private key that is not a
+dataset dependency. The transfer script explicitly excludes it and verifies
+that it is absent on SAIDS. The Hugging Face snapshot uses symlinks, so the
+script dereferences them and verifies the transferred model weight checksum.
+
+This script transfers model and environment data only. Python/Conda environments
+must be packed separately with `conda-pack` or rebuilt from an offline package
+bundle; copying a Conda directory to a different absolute path is not reliable.
+
 ## Credential Policy
 
 Credentials must remain in the user's SSH agent, `~/.ssh`, `~/.netrc`, or an
 environment variable. Never add API keys, private keys, `.netrc`, or `.env`
 files to this repository.
-
