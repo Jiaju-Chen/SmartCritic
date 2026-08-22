@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT=${PROJECT_ROOT:-/data2/group_何向南/chenjiaju/luna/worktrees/alfworld-direct-20260823}
 SHARED_ROOT=${SHARED_ROOT:-/data2/group_何向南/chenjiaju/luna/shared}
-ENV_ARCHIVE=${ENV_ARCHIVE:-$SHARED_ROOT/archives/gigpo-baselines-20260823.tar.zst}
+ENV_ARCHIVE=${ENV_ARCHIVE:-$SHARED_ROOT/archives/gigpo-baselines-20260823-v2.tar.zst}
 LOCAL_ROOT=${SLURM_TMPDIR:-/tmp/$USER/smartcritic-$SLURM_JOB_ID}
 ENV_ROOT=$LOCAL_ROOT/env
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_directmix2h_alfworld_t128_v140_vb20_8gpu_seed0_saids_20260823}

@@ -5,10 +5,16 @@ PROJECT_ROOT=${PROJECT_ROOT:-/data2/group_何向南/chenjiaju/luna/worktrees/alf
 SHARED_ROOT=${SHARED_ROOT:-/data2/group_何向南/chenjiaju/luna/shared}
 LOG_ROOT=${LOG_ROOT:-$SHARED_ROOT/slurm_logs/luna_alfworld_advantage_ablation_20260823}
 PARTITION=${PARTITION:-A100}
+SUBMIT_HOLD=${SUBMIT_HOLD:-0}
 mkdir -p "$LOG_ROOT"
 cd "$PROJECT_ROOT"
 
-probe_job_id=$(sbatch --parsable \
+hold_args=()
+if [[ "$SUBMIT_HOLD" == 1 ]]; then
+  hold_args+=(--hold)
+fi
+
+probe_job_id=$(sbatch --parsable "${hold_args[@]}" \
   --job-name=luna-alf-probe \
   --partition="$PARTITION" \
   --nodes=1 \
@@ -37,4 +43,5 @@ echo "probe_job_id=$probe_job_id"
 echo "train_job_id=$train_job_id"
 echo "dependency=afterok:$probe_job_id"
 echo "partition=$PARTITION"
+echo "probe_held=$SUBMIT_HOLD"
 echo "logs=$LOG_ROOT"

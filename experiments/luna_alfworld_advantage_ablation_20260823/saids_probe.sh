@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SHARED_ROOT=${SHARED_ROOT:-/data2/group_何向南/chenjiaju/luna/shared}
-ENV_ARCHIVE=${ENV_ARCHIVE:-$SHARED_ROOT/archives/gigpo-baselines-20260823.tar.zst}
+ENV_ARCHIVE=${ENV_ARCHIVE:-$SHARED_ROOT/archives/gigpo-baselines-20260823-v2.tar.zst}
 LOCAL_ROOT=${SLURM_TMPDIR:-/tmp/$USER/smartcritic-$SLURM_JOB_ID}
 ENV_ROOT=$LOCAL_ROOT/env
 mkdir -p "$ENV_ROOT"
