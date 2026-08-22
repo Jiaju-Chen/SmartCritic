@@ -45,3 +45,10 @@ If the GPUs are occupied by the WebShop ablation, submit it safely with:
 ```bash
 bash experiments/luna_alfworld_advantage_ablation_20260823/launch_after_webshop.sh
 ```
+
+On SAIDS, `submit_saids.sh` submits a one-GPU environment probe followed by an
+eight-GPU A100 training job with an `afterok` dependency:
+
+```bash
+bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids.sh
+```

@@ -3,15 +3,21 @@ set -euo pipefail
 
 PROJECT_ROOT=${PROJECT_ROOT:-/home/dataset-local/cjj/RL/SmartCritic_ALFWORLD_DIRECT}
 ENV_ROOT=${ENV_ROOT:-/home/dataset-local/cjj/RL/envs/gigpo-baselines}
-set +u
-source /opt/conda/bin/activate "$ENV_ROOT"
-set -u
+if [[ ${SKIP_CONDA_ACTIVATE:-0} == 1 ]]; then
+  export PATH="$ENV_ROOT/bin:$PATH"
+  export CONDA_PREFIX="$ENV_ROOT"
+else
+  set +u
+  source /opt/conda/bin/activate "$ENV_ROOT"
+  set -u
+fi
 cd "$PROJECT_ROOT"
 
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_directmix2h_alfworld_t128_v140_vb20_8gpu_seed0_20260823}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/luna_alfworld_advantage_ablation}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
-CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_alfworld_advantage_ablation/$RUN_NAME}
+CKPT_ROOT=${CKPT_ROOT:-/home/dataset-local/cjj/RL/checkpoints/luna_alfworld_advantage_ablation}
+CKPT_DIR=${CKPT_DIR:-$CKPT_ROOT/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 
 ORIGINAL_HOME=${ORIGINAL_HOME:-/home/batchcom}
