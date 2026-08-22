@@ -36,6 +36,9 @@ class Tracking:
     supported_backend = ["wandb", "mlflow", "swanlab", "vemlp_wandb", "tensorboard", "console", "clearml"]
 
     def __init__(self, project_name, experiment_name, default_backend: Union[str, List[str]] = "console", config=None):
+        self.logger = {}
+        self._finished = False
+
         if isinstance(default_backend, str):
             default_backend = [default_backend]
         for backend in default_backend:
@@ -45,8 +48,6 @@ class Tracking:
                 warnings.warn("`tracking` logger is deprecated. use `wandb` instead.", DeprecationWarning, stacklevel=2)
             else:
                 assert backend in self.supported_backend, f"{backend} is not supported"
-
-        self.logger = {}
 
         if "tracking" in default_backend or "wandb" in default_backend:
             import wandb
@@ -129,18 +130,29 @@ class Tracking:
             if backend is None or default_backend in backend:
                 logger_instance.log(data=data, step=step)
 
-    def __del__(self):
+    def finish(self, exit_code=0):
+        """Flush and close tracking backends exactly once."""
+        if self._finished:
+            return
+        self._finished = True
+
         if "wandb" in self.logger:
-            self.logger["wandb"].finish(exit_code=0)
+            self.logger["wandb"].finish(exit_code=exit_code)
         if "swanlab" in self.logger:
             self.logger["swanlab"].finish()
         if "vemlp_wandb" in self.logger:
-            self.logger["vemlp_wandb"].finish(exit_code=0)
+            self.logger["vemlp_wandb"].finish(exit_code=exit_code)
         if "tensorboard" in self.logger:
             self.logger["tensorboard"].finish()
+        if "clearml" in self.logger:
+            self.logger["clearml"].finish()
 
-        if "clearnml" in self.logger:
-            self.logger["clearnml"].finish()
+    def __del__(self):
+        try:
+            self.finish()
+        except Exception:
+            # Destructors run during interpreter teardown and must not mask exit.
+            pass
 
 
 class ClearMLLogger:
