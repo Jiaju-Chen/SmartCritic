@@ -66,3 +66,13 @@ are available:
 ```bash
 bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids_credit_only.sh
 ```
+
+For a fresh cluster deployment, `submit_saids_retry.sh` first runs an exact
+one-update integration smoke test and releases all three formal jobs only when
+that test succeeds. It reuses prepared indexed parquet files and exposes the
+shared filesystem through an ASCII-only path so Hydra never receives the
+Chinese group-directory component:
+
+```bash
+bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids_retry.sh
+```

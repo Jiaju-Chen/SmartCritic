@@ -19,6 +19,7 @@ RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_ROOT=${CKPT_ROOT:-/home/dataset-local/cjj/RL/checkpoints/luna_alfworld_advantage_ablation}
 CKPT_DIR=${CKPT_DIR:-$CKPT_ROOT/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
+PREPARED_DATA_ROOT=${PREPARED_DATA_ROOT:-}
 
 ORIGINAL_HOME=${ORIGINAL_HOME:-/home/batchcom}
 RAY_TMP_ROOT=${RAY_TMP_ROOT:-/home/dataset-local/cjj/lad_r}
@@ -65,6 +66,19 @@ SAVE_FREQ=${SAVE_FREQ:-5}
 VAL_BEFORE_TRAIN=${VAL_BEFORE_TRAIN:-False}
 NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 RAY_NUM_CPUS=${RAY_NUM_CPUS:-96}
+
+if [[ -n "$PREPARED_DATA_ROOT" ]]; then
+  for split in train test; do
+    if [[ ! -f "$PREPARED_DATA_ROOT/$split.parquet" ]]; then
+      echo "Missing prepared ALFWorld index data: $PREPARED_DATA_ROOT/$split.parquet" >&2
+      exit 2
+    fi
+  done
+  mkdir -p "$HOME/data/verl-agent/text"
+  cp "$PREPARED_DATA_ROOT/train.parquet" "$HOME/data/verl-agent/text/train.parquet"
+  cp "$PREPARED_DATA_ROOT/test.parquet" "$HOME/data/verl-agent/text/test.parquet"
+  export SKIP_DATA_PREP=1
+fi
 
 case "$ADVANTAGE_COMPOSITION" in
   residual | direct | token_only | turn_only) ;;

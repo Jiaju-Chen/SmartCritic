@@ -12,10 +12,13 @@ train_data_size=${TRAIN_DATA_SIZE:-16}
 val_data_size=${VAL_DATA_SIZE:-8}
 
 # We only use data preparation to indicate the modality and the data size.
-python3 -m examples.data_preprocess.prepare \
-    --mode 'text' \
-    --train_data_size $train_data_size \
-    --val_data_size $val_data_size
+# Offline clusters may provide equivalent indexed parquet files ahead of time.
+if [[ ${SKIP_DATA_PREP:-0} != 1 ]]; then
+    python3 -m examples.data_preprocess.prepare \
+        --mode 'text' \
+        --train_data_size $train_data_size \
+        --val_data_size $val_data_size
+fi
 
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=gae \
