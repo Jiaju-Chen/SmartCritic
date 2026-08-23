@@ -33,6 +33,7 @@ export FAST_TMP_ROOT=$LOCAL_ROOT/tmp
 export WANDB_RUN_ID=${WANDB_RUN_ID:-lunadirectalf_s_0823}
 export WANDB_MODE=${WANDB_MODE:-offline}
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
+unset ROCR_VISIBLE_DEVICES HIP_VISIBLE_DEVICES
 
 cd "$PROJECT_ALIAS"
 bash experiments/luna_alfworld_advantage_ablation_20260823/run_train.sh
