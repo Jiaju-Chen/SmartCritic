@@ -10,7 +10,7 @@ SHARED_ALIAS=$LOCAL_ROOT/shared
 PROJECT_ALIAS=$LOCAL_ROOT/project
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_directmix2h_alfworld_t128_v140_vb20_8gpu_seed0_saids_20260823}
 
-mkdir -p "$ENV_ROOT" "$LOCAL_ROOT/ray" "$LOCAL_ROOT/tmp"
+mkdir -p "$ENV_ROOT" "$LOCAL_ROOT/ray" "$LOCAL_ROOT/tmp" "$LOCAL_ROOT/hf/datasets" "$LOCAL_ROOT/cache"
 zstd -dc "$ENV_ARCHIVE" | tar -xf - -C "$ENV_ROOT"
 ln -s "$SHARED_ROOT" "$SHARED_ALIAS"
 ln -s "$PROJECT_ROOT" "$PROJECT_ALIAS"
@@ -25,6 +25,9 @@ export SNAP=${SNAP:-$SHARED_ALIAS/models/Qwen2.5-1.5B-Instruct}
 export ALFWORLD_DATA=${ALFWORLD_DATA:-$SHARED_ALIAS/datasets/alfworld_data}
 export PREPARED_DATA_ROOT=${PREPARED_DATA_ROOT:-$SHARED_ALIAS/datasets/alfworld_prompts_t128_v140/text}
 export ORIGINAL_HOME=${ORIGINAL_HOME:-/home/chenjiaju}
+export HF_HOME=$LOCAL_ROOT/hf
+export HF_DATASETS_CACHE=$LOCAL_ROOT/hf/datasets
+export XDG_CACHE_HOME=$LOCAL_ROOT/cache
 export RAY_TMP_ROOT=$LOCAL_ROOT/ray
 export FAST_TMP_ROOT=$LOCAL_ROOT/tmp
 export WANDB_RUN_ID=${WANDB_RUN_ID:-lunadirectalf_s_0823}
