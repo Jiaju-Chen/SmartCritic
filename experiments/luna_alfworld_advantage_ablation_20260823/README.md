@@ -1,11 +1,13 @@
 # Luna ALFWorld Residual Ablation
 
-This experiment removes Luna's action-centered token residual while keeping
-the unified two-layer, two-head critic and all other ALFWorld settings fixed.
+This experiment isolates Luna's Actor advantage composition while keeping the
+unified two-layer, two-head critic and all other ALFWorld settings fixed.
 
 ```text
 Luna residual: A_actor(t,i) = A_turn(t) + alpha * (A_token(t,i) - mean_i A_token(t,i))
 Direct mix:    A_actor(t,i) = A_turn(t) + alpha * A_token(t,i)
+Token only:    A_actor(t,i) = A_token(t,i)
+Turn only:     A_actor(t,i) = A_turn(t)
 ```
 
 Both value heads are still trained with the same token and turn targets. Only
@@ -56,3 +58,11 @@ bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids.sh
 SAIDS records W&B offline because its compute network cannot reach
 `api.wandb.ai`. The run directory lives under the shared run root and can be
 synced from the eight-GPU server or a connected workstation after training.
+
+After the shared environment probe has passed, submit the token-only and
+turn-only jobs independently so Slurm can run them concurrently when two nodes
+are available:
+
+```bash
+bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids_credit_only.sh
+```

@@ -66,10 +66,14 @@ VAL_BEFORE_TRAIN=${VAL_BEFORE_TRAIN:-False}
 NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 RAY_NUM_CPUS=${RAY_NUM_CPUS:-96}
 
-if [[ "$ADVANTAGE_COMPOSITION" != "direct" ]]; then
-  echo "This ablation requires ADVANTAGE_COMPOSITION=direct, got $ADVANTAGE_COMPOSITION" >&2
-  exit 2
-fi
+case "$ADVANTAGE_COMPOSITION" in
+  residual | direct | token_only | turn_only) ;;
+  *)
+    echo "Unsupported ADVANTAGE_COMPOSITION=$ADVANTAGE_COMPOSITION" >&2
+    echo "Expected residual, direct, token_only, or turn_only" >&2
+    exit 2
+    ;;
+esac
 
 bash examples/ppo_trainer/run_alfworld.sh vllm \
   algorithm.adv_estimator=luna_unified \
