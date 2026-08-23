@@ -66,6 +66,13 @@ SAVE_FREQ=${SAVE_FREQ:-5}
 VAL_BEFORE_TRAIN=${VAL_BEFORE_TRAIN:-False}
 NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 RAY_NUM_CPUS=${RAY_NUM_CPUS:-96}
+N_GPUS_PER_NODE=${N_GPUS_PER_NODE:-8}
+ROLLOUT_TP_SIZE=${ROLLOUT_TP_SIZE:-2}
+
+if (( N_GPUS_PER_NODE % ROLLOUT_TP_SIZE != 0 )); then
+  echo "N_GPUS_PER_NODE=$N_GPUS_PER_NODE must be divisible by ROLLOUT_TP_SIZE=$ROLLOUT_TP_SIZE" >&2
+  exit 2
+fi
 
 if [[ -n "$PREPARED_DATA_ROOT" ]]; then
   for split in train test; do
@@ -116,7 +123,7 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   trainer.monitor_validation_size=32 \
   trainer.val_before_train="$VAL_BEFORE_TRAIN" \
   trainer.resume_mode=auto \
-  trainer.n_gpus_per_node=8 \
+  trainer.n_gpus_per_node="$N_GPUS_PER_NODE" \
   trainer.nnodes=1 \
   actor_rollout_ref.model.path="$SNAP" \
   critic.model.path="$SNAP" \
@@ -130,7 +137,7 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   critic.ppo_micro_batch_size_per_gpu=1 \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
   actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=1 \
-  actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+  actor_rollout_ref.rollout.tensor_model_parallel_size="$ROLLOUT_TP_SIZE" \
   actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
   actor_rollout_ref.rollout.enforce_eager=False \
   actor_rollout_ref.rollout.val_kwargs.temperature=0.4 \

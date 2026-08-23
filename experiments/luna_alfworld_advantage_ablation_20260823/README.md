@@ -76,3 +76,12 @@ Chinese group-directory component:
 ```bash
 bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids_retry.sh
 ```
+
+`submit_saids_a800_smoke.sh` tests the same global training semantics on four
+A800 GPUs. It keeps the 128-task rollout batch, PPO mini-batch 256, micro-batch
+one per GPU, and full seen-140 validation unchanged; only the FSDP world size
+and resource-only Ray CPU allocation differ:
+
+```bash
+bash experiments/luna_alfworld_advantage_ablation_20260823/submit_saids_a800_smoke.sh
+```
