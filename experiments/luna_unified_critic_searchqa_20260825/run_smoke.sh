@@ -3,9 +3,15 @@ set -euo pipefail
 
 PROJECT_ROOT=${PROJECT_ROOT:-/home/dataset-local/cjj/RL/SmartCritic-searchqa}
 ENV_ROOT=${ENV_ROOT:-/home/dataset-local/conda/envs/verl-agent-webshop}
-set +u
-source /opt/conda/bin/activate "$ENV_ROOT"
-set -u
+if [[ ${SKIP_CONDA_ACTIVATE:-0} == 1 ]]; then
+  export PATH="$ENV_ROOT/bin:$PATH"
+  export CONDA_PREFIX="$ENV_ROOT"
+  export PYTHONNOUSERSITE=1
+else
+  set +u
+  source /opt/conda/bin/activate "$ENV_ROOT"
+  set -u
+fi
 cd "$PROJECT_ROOT"
 
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_unified_residual_searchqa_smoke_t8_v4_8gpu_seed0_20260825}
@@ -14,6 +20,9 @@ RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_unified_searchqa/$RUN_NAME}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 PORT=${SEARCH_PORT:-8010}
+NUM_GPUS=${NUM_GPUS:-8}
+TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE:-2}
+ROLLOUT_GPU_MEMORY_UTILIZATION=${ROLLOUT_GPU_MEMORY_UTILIZATION:-0.45}
 
 ORIGINAL_HOME=${ORIGINAL_HOME:-/home/batchcom}
 RAY_TMP_ROOT=${RAY_TMP_ROOT:-/dev/shm/cjj_luna_searchqa_smoke_ray}
@@ -100,9 +109,9 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.fsdp_config.param_offload=False \
   actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
-  actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
+  actor_rollout_ref.rollout.tensor_model_parallel_size="$TENSOR_PARALLEL_SIZE" \
   actor_rollout_ref.rollout.name=vllm \
-  actor_rollout_ref.rollout.gpu_memory_utilization=0.45 \
+  actor_rollout_ref.rollout.gpu_memory_utilization="$ROLLOUT_GPU_MEMORY_UTILIZATION" \
   actor_rollout_ref.rollout.enable_chunked_prefill=False \
   actor_rollout_ref.rollout.enforce_eager=False \
   actor_rollout_ref.rollout.free_cache_engine=False \
@@ -136,7 +145,7 @@ python -m verl.trainer.main_ppo \
   "trainer.logger=['console','wandb']" \
   trainer.project_name=verl_agent_searchqa_critic_ablation \
   trainer.experiment_name="$RUN_NAME" \
-  trainer.n_gpus_per_node=8 \
+  trainer.n_gpus_per_node="$NUM_GPUS" \
   trainer.nnodes=1 \
   trainer.default_local_dir="$CKPT_DIR" \
   trainer.total_epochs=1 \

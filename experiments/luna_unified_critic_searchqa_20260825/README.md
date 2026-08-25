@@ -36,6 +36,14 @@ One-step eight-GPU training smoke:
 bash experiments/luna_unified_critic_searchqa_20260825/run_smoke.sh
 ```
 
+The same smoke can run on one A100 80GB without changing the global training
+batch or algorithm:
+
+```bash
+NUM_GPUS=1 TENSOR_PARALLEL_SIZE=1 \
+  bash experiments/luna_unified_critic_searchqa_20260825/run_smoke.sh
+```
+
 Wait for the current WebShop run to release all GPUs, then launch the smoke:
 
 ```bash
