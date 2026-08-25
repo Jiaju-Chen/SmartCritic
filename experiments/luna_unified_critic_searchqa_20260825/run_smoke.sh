@@ -61,6 +61,11 @@ for _ in $(seq 1 30); do
 done
 curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null
 
+HYDRA_ARGS=()
+if [[ ${CONFIG_ONLY:-0} == 1 ]]; then
+  HYDRA_ARGS+=(--cfg job)
+fi
+
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=luna_unified \
   algorithm.gamma=1.0 \
@@ -143,4 +148,5 @@ python -m verl.trainer.main_ppo \
   trainer.val_before_train=True \
   trainer.resume_mode=disable \
   ray_init.num_cpus=32 \
-  +ray_init._temp_dir="$RAY_TMPDIR"
+  +ray_init._temp_dir="$RAY_TMPDIR" \
+  "${HYDRA_ARGS[@]}"
