@@ -17,7 +17,10 @@ import asyncio
 import concurrent.futures
 from typing import Any, Dict, List, Tuple
 
-import gym
+try:
+    import gym
+except ModuleNotFoundError:
+    import gymnasium as gym
 import numpy as np
 from omegaconf import DictConfig, ListConfig
 from copy import deepcopy 
