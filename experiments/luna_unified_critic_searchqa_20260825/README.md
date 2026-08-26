@@ -54,3 +54,44 @@ For a full Search-R1 experiment, use the upstream preprocessing script and E5
 retrieval service documented in `docs/UPSTREAM_VERL_AGENT_README.md`, then pass
 the resulting files and endpoint through `TRAIN_DATA`, `VAL_DATA`, and
 `SEARCH_URL`.
+
+## Official Search-R1 run
+
+The formal scripts preserve the upstream Search-R1 environment protocol:
+
+- NQ and HotpotQA mixed training data from `PeterJinGo/nq_hotpotqa_train`;
+- the upstream multi-dataset test parquet;
+- Wikipedia-2018 corpus and the official E5 flat index;
+- E5-base-v2 retrieval with `topk=3`;
+- four search turns, 4096 prompt tokens, and 512 response tokens;
+- batch size 256, validation batch size 512, and one dataset epoch.
+
+Prepare the QA parquet files on the eight-GPU training host:
+
+```bash
+bash experiments/luna_unified_critic_searchqa_20260825/prepare_official_data.sh
+```
+
+Prepare and start the retriever on a host with at least 160 GB free disk space
+and one A100-80GB:
+
+```bash
+bash experiments/luna_unified_critic_searchqa_20260825/prepare_official_retriever.sh
+bash experiments/luna_unified_critic_searchqa_20260825/run_official_retriever.sh
+```
+
+Forward that server to local port 18000, then launch formal training:
+
+```bash
+SEARCH_URL=http://127.0.0.1:18000/retrieve \
+  bash experiments/luna_unified_critic_searchqa_20260825/run_formal.sh
+```
+
+The formal Luna run uses five rollouts per question, matching GiGPO's group
+size and total sampled environment interactions. Luna does not use group
+normalization; the five trajectories are ordinary PPO samples consumed by its
+critic. Dataset, retriever, environment horizon, prompts, response limit, and
+evaluation data are also aligned with GiGPO. The actor remains
+Qwen2.5-1.5B-Instruct to match the existing Luna ablations; model-scale
+comparisons against the published 3B/7B Search-R1 table must therefore be
+reported separately.
