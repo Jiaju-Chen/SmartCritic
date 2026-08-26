@@ -21,5 +21,5 @@ exec "$ENV_ROOT/bin/python" "$PROJECT_ROOT/examples/search/retriever/retrieval_s
   --retriever_name e5 \
   --retriever_model "$ASSET_ROOT/models/e5-base-v2" \
   --faiss_gpu \
+  --faiss_gpu_temp_memory_mb 512 \
   --port "$PORT"
-

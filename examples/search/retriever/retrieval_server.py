@@ -196,11 +196,24 @@ class DenseRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
         self.index = faiss.read_index(self.index_path)
+        self.gpu_resources = None
         if config.faiss_gpu:
-            co = faiss.GpuMultipleClonerOptions()
-            co.useFloat16 = True
-            co.shard = True
-            self.index = faiss.index_cpu_to_all_gpus(self.index, co=co)
+            gpu_count = faiss.get_num_gpus()
+            if gpu_count == 1:
+                # The multi-GPU convenience wrapper can reserve a second
+                # index-sized temporary buffer on a single GPU. Use explicit
+                # resources so the 64.6 GB flat index fits an A100-80GB after
+                # float16 conversion.
+                self.gpu_resources = faiss.StandardGpuResources()
+                self.gpu_resources.setTempMemory(config.faiss_gpu_temp_memory_mb * 1024 * 1024)
+                co = faiss.GpuClonerOptions()
+                co.useFloat16 = True
+                self.index = faiss.index_cpu_to_gpu(self.gpu_resources, 0, self.index, co)
+            else:
+                co = faiss.GpuMultipleClonerOptions()
+                co.useFloat16 = True
+                co.shard = True
+                self.index = faiss.index_cpu_to_all_gpus(self.index, co=co)
 
         self.corpus = load_corpus(self.corpus_path)
         self.encoder = Encoder(
@@ -286,6 +299,7 @@ class Config:
         retrieval_query_max_length: int = 256,
         retrieval_use_fp16: bool = False,
         retrieval_batch_size: int = 128,
+        faiss_gpu_temp_memory_mb: int = 512,
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -299,6 +313,7 @@ class Config:
         self.retrieval_query_max_length = retrieval_query_max_length
         self.retrieval_use_fp16 = retrieval_use_fp16
         self.retrieval_batch_size = retrieval_batch_size
+        self.faiss_gpu_temp_memory_mb = faiss_gpu_temp_memory_mb
 
 
 class QueryRequest(BaseModel):
@@ -363,6 +378,12 @@ if __name__ == "__main__":
         "--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model."
     )
     parser.add_argument("--faiss_gpu", action="store_true", help="Use GPU for computation")
+    parser.add_argument(
+        "--faiss_gpu_temp_memory_mb",
+        type=int,
+        default=512,
+        help="Temporary FAISS memory per GPU; only used by the single-GPU loader.",
+    )
     parser.add_argument("--port", type=int, default=8000, help="Port to run the FastAPI server on.")
 
     args = parser.parse_args()
@@ -380,6 +401,7 @@ if __name__ == "__main__":
         retrieval_query_max_length=256,
         retrieval_use_fp16=True,
         retrieval_batch_size=512,  # this is unused in the current retrieval implementation, which only supports single query
+        faiss_gpu_temp_memory_mb=args.faiss_gpu_temp_memory_mb,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
