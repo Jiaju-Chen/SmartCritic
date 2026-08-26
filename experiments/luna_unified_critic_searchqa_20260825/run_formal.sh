@@ -11,6 +11,8 @@ CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_unified_searchq
 TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-200}
 TEST_FREQ=${TEST_FREQ:-50}
 SAVE_FREQ=${SAVE_FREQ:-50}
+TOKEN_GAMMA=${TOKEN_GAMMA:-1.0}
+TURN_GAMMA=${TURN_GAMMA:-0.95}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 SEARCH_URL=${SEARCH_URL:-http://127.0.0.1:18000/retrieve}
 
@@ -59,9 +61,9 @@ fi
 
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=luna_unified \
-  algorithm.gamma=0.95 \
+  algorithm.gamma="$TOKEN_GAMMA" \
   algorithm.lam=1.0 \
-  algorithm.hybrid_advantage.turn_gamma=0.95 \
+  algorithm.hybrid_advantage.turn_gamma="$TURN_GAMMA" \
   algorithm.hybrid_advantage.turn_lam=0.95 \
   algorithm.hybrid_advantage.token_residual_scale=1.0 \
   algorithm.hybrid_advantage.composition_mode=residual \
