@@ -200,15 +200,24 @@ class DenseRetriever(BaseRetriever):
         if config.faiss_gpu:
             gpu_count = faiss.get_num_gpus()
             if gpu_count == 1:
-                # The multi-GPU convenience wrapper can reserve a second
-                # index-sized temporary buffer on a single GPU. Use explicit
-                # resources so the 64.6 GB flat index fits an A100-80GB after
-                # float16 conversion.
+                # Whole-index cloning peaks above 80 GB because it stages the
+                # float32 source beside the float16 destination. Reconstruct
+                # flat vectors in bounded chunks and preserve their row IDs.
                 self.gpu_resources = faiss.StandardGpuResources()
                 self.gpu_resources.setTempMemory(config.faiss_gpu_temp_memory_mb * 1024 * 1024)
-                co = faiss.GpuClonerOptions()
-                co.useFloat16 = True
-                self.index = faiss.index_cpu_to_gpu(self.gpu_resources, 0, self.index, co)
+                gpu_config = faiss.GpuIndexFlatConfig()
+                gpu_config.device = 0
+                gpu_config.useFloat16 = True
+                if self.index.metric_type == faiss.METRIC_INNER_PRODUCT:
+                    gpu_index = faiss.GpuIndexFlatIP(self.gpu_resources, self.index.d, gpu_config)
+                elif self.index.metric_type == faiss.METRIC_L2:
+                    gpu_index = faiss.GpuIndexFlatL2(self.gpu_resources, self.index.d, gpu_config)
+                else:
+                    raise ValueError(f"Unsupported single-GPU flat-index metric: {self.index.metric_type}")
+                for start in range(0, self.index.ntotal, config.faiss_gpu_add_batch_size):
+                    count = min(config.faiss_gpu_add_batch_size, self.index.ntotal - start)
+                    gpu_index.add(self.index.reconstruct_n(start, count))
+                self.index = gpu_index
             else:
                 co = faiss.GpuMultipleClonerOptions()
                 co.useFloat16 = True
@@ -300,6 +309,7 @@ class Config:
         retrieval_use_fp16: bool = False,
         retrieval_batch_size: int = 128,
         faiss_gpu_temp_memory_mb: int = 512,
+        faiss_gpu_add_batch_size: int = 100_000,
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -314,6 +324,7 @@ class Config:
         self.retrieval_use_fp16 = retrieval_use_fp16
         self.retrieval_batch_size = retrieval_batch_size
         self.faiss_gpu_temp_memory_mb = faiss_gpu_temp_memory_mb
+        self.faiss_gpu_add_batch_size = faiss_gpu_add_batch_size
 
 
 class QueryRequest(BaseModel):
@@ -384,6 +395,12 @@ if __name__ == "__main__":
         default=512,
         help="Temporary FAISS memory per GPU; only used by the single-GPU loader.",
     )
+    parser.add_argument(
+        "--faiss_gpu_add_batch_size",
+        type=int,
+        default=100_000,
+        help="Vectors transferred per batch when building a single-GPU flat index.",
+    )
     parser.add_argument("--port", type=int, default=8000, help="Port to run the FastAPI server on.")
 
     args = parser.parse_args()
@@ -402,6 +419,7 @@ if __name__ == "__main__":
         retrieval_use_fp16=True,
         retrieval_batch_size=512,  # this is unused in the current retrieval implementation, which only supports single query
         faiss_gpu_temp_memory_mb=args.faiss_gpu_temp_memory_mb,
+        faiss_gpu_add_batch_size=args.faiss_gpu_add_batch_size,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
