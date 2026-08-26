@@ -8,6 +8,9 @@ RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_unified_residual_searchr1_official_8gpu
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/luna_unified_searchqa}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_unified_searchqa/$RUN_NAME}
+TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-200}
+TEST_FREQ=${TEST_FREQ:-50}
+SAVE_FREQ=${SAVE_FREQ:-50}
 SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306}
 SEARCH_URL=${SEARCH_URL:-http://127.0.0.1:18000/retrieve}
 
@@ -56,9 +59,9 @@ fi
 
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=luna_unified \
-  algorithm.gamma=1.0 \
+  algorithm.gamma=0.95 \
   algorithm.lam=1.0 \
-  algorithm.hybrid_advantage.turn_gamma=1.0 \
+  algorithm.hybrid_advantage.turn_gamma=0.95 \
   algorithm.hybrid_advantage.turn_lam=0.95 \
   algorithm.hybrid_advantage.token_residual_scale=1.0 \
   algorithm.hybrid_advantage.composition_mode=residual \
@@ -92,6 +95,8 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.name=vllm \
+  actor_rollout_ref.rollout.temperature=1.0 \
+  actor_rollout_ref.rollout.val_kwargs.temperature=0 \
   actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
   actor_rollout_ref.rollout.enable_chunked_prefill=False \
   actor_rollout_ref.rollout.enforce_eager=False \
@@ -128,8 +133,9 @@ python -m verl.trainer.main_ppo \
   trainer.nnodes=1 \
   trainer.default_local_dir="$CKPT_DIR" \
   trainer.total_epochs=1 \
-  trainer.test_freq=50 \
-  trainer.save_freq=50 \
+  trainer.total_training_steps="$TOTAL_TRAINING_STEPS" \
+  trainer.test_freq="$TEST_FREQ" \
+  trainer.save_freq="$SAVE_FREQ" \
   trainer.checkpoint_slot_mode=best_latest \
   trainer.best_checkpoint_metric=val/success_rate \
   trainer.monitor_validation_size=512 \
