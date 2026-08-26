@@ -6,6 +6,7 @@ ENV_ROOT=${ENV_ROOT:-/home/dataset-local/conda/envs/verl-agent-webshop}
 DATA_ROOT=${DATA_ROOT:-/home/dataset-local/cjj/RL/data/searchR1_official}
 HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
 REPO_URL="$HF_ENDPOINT/datasets/PeterJinGo/nq_hotpotqa_train/resolve/main"
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
 mkdir -p "$DATA_ROOT/raw" "$DATA_ROOT/processed"
 for split in train test; do
@@ -18,4 +19,3 @@ done
   "$PROJECT_ROOT/experiments/luna_unified_critic_searchqa_20260825/process_official_dataset.py" \
   --raw-dir "$DATA_ROOT/raw" \
   --output-dir "$DATA_ROOT/processed"
-

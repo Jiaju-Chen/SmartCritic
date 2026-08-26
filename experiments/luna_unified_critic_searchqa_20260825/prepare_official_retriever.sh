@@ -5,6 +5,7 @@ PROJECT_ROOT=${PROJECT_ROOT:-/home/dataset-local/cjj/RL/SmartCritic-searchqa}
 ENV_ROOT=${ENV_ROOT:-/home/dataset-local/conda/envs/verl-agent-webshop}
 ASSET_ROOT=${ASSET_ROOT:-/home/dataset-local/cjj/RL/data/searchR1_official_retriever}
 HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
 INDEX_URL="$HF_ENDPOINT/datasets/PeterJinGo/wiki-18-e5-index/resolve/main"
 CORPUS_URL="$HF_ENDPOINT/datasets/PeterJinGo/wiki-18-corpus/resolve/main"
@@ -54,4 +55,3 @@ if not corpus.exists():
 print(f"index={index} bytes={index.stat().st_size}")
 print(f"corpus={corpus} bytes={corpus.stat().st_size}")
 PY
-
