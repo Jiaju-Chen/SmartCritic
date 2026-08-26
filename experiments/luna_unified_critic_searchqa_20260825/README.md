@@ -87,6 +87,13 @@ SEARCH_URL=http://127.0.0.1:18000/retrieve \
   bash experiments/luna_unified_critic_searchqa_20260825/run_formal.sh
 ```
 
+When the retriever runs on `yun-my1card`, the persistent launcher creates the
+SSH tunnel, waits for retrieval readiness, and starts training automatically:
+
+```bash
+bash experiments/luna_unified_critic_searchqa_20260825/launch_formal_via_my1card.sh
+```
+
 The formal Luna run uses five rollouts per question, matching GiGPO's group
 size and total sampled environment interactions. Luna does not use group
 normalization; the five trajectories are ordinary PPO samples consumed by its
