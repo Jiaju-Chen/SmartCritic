@@ -44,10 +44,15 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
 test -s "$DATA_ROOT/train.parquet"
 test -s "$DATA_ROOT/test.parquet"
-curl --fail --silent --show-error --max-time 30 \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
-  "$SEARCH_URL" >/dev/null
+HYDRA_ARGS=()
+if [[ ${CONFIG_ONLY:-0} == 1 ]]; then
+  HYDRA_ARGS+=(--cfg job)
+else
+  curl --fail --silent --show-error --max-time 30 \
+    -H 'Content-Type: application/json' \
+    -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
+    "$SEARCH_URL" >/dev/null
+fi
 
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=luna_unified \
@@ -131,4 +136,5 @@ python -m verl.trainer.main_ppo \
   trainer.val_before_train=False \
   trainer.resume_mode=disable \
   ray_init.num_cpus=64 \
-  +ray_init._temp_dir="$RAY_TMPDIR"
+  +ray_init._temp_dir="$RAY_TMPDIR" \
+  "${HYDRA_ARGS[@]}"
