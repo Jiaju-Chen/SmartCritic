@@ -1,4 +1,5 @@
 import json
+import threading
 import warnings
 from typing import List, Optional
 import argparse
@@ -195,6 +196,9 @@ class BM25Retriever(BaseRetriever):
 class DenseRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
+        # FAISS GPU StandardGpuResources owns a stack allocator that is not
+        # safe for concurrent searches from FastAPI's worker threads.
+        self._gpu_search_lock = threading.Lock()
         self.index = faiss.read_index(self.index_path)
         self.gpu_resources = None
         if config.faiss_gpu:
@@ -236,40 +240,42 @@ class DenseRetriever(BaseRetriever):
         self.batch_size = config.retrieval_batch_size
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
-        if num is None:
-            num = self.topk
-        query_emb = self.encoder.encode(query)
-        scores, idxs = self.index.search(query_emb, k=num)
-        idxs = idxs[0]
-        scores = scores[0]
-        results = load_docs(self.corpus, idxs)
+        with self._gpu_search_lock:
+            if num is None:
+                num = self.topk
+            query_emb = self.encoder.encode(query)
+            scores, idxs = self.index.search(query_emb, k=num)
+            idxs = idxs[0]
+            scores = scores[0]
+            results = load_docs(self.corpus, idxs)
         if return_score:
             return results, scores
         else:
             return results
 
     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
-        if isinstance(query_list, str):
-            query_list = [query_list]
-        if num is None:
-            num = self.topk
+        with self._gpu_search_lock:
+            if isinstance(query_list, str):
+                query_list = [query_list]
+            if num is None:
+                num = self.topk
 
-        results = []
-        scores = []
-        for start_idx in range(0, len(query_list), self.batch_size):
-            query_batch = query_list[start_idx : start_idx + self.batch_size]
-            batch_emb = self.encoder.encode(query_batch)
-            batch_scores, batch_idxs = self.index.search(batch_emb, k=num)
+            results = []
+            scores = []
+            for start_idx in range(0, len(query_list), self.batch_size):
+                query_batch = query_list[start_idx : start_idx + self.batch_size]
+                batch_emb = self.encoder.encode(query_batch)
+                batch_scores, batch_idxs = self.index.search(batch_emb, k=num)
 
-            batch_scores = batch_scores.tolist()
-            batch_idxs = batch_idxs.tolist()
-            # load_docs is not vectorized, but is a python list approach
-            flat_idxs = sum(batch_idxs, [])
-            batch_results = load_docs(self.corpus, flat_idxs)
-            # chunk them back
-            batch_results = [batch_results[i * num : (i + 1) * num] for i in range(len(batch_idxs))]
-            results.extend(batch_results)
-            scores.extend(batch_scores)
+                batch_scores = batch_scores.tolist()
+                batch_idxs = batch_idxs.tolist()
+                # load_docs is not vectorized, but is a python list approach
+                flat_idxs = sum(batch_idxs, [])
+                batch_results = load_docs(self.corpus, flat_idxs)
+                # chunk them back
+                batch_results = [batch_results[i * num : (i + 1) * num] for i in range(len(batch_idxs))]
+                results.extend(batch_results)
+                scores.extend(batch_scores)
         if return_score:
             return results, scores
         else:
