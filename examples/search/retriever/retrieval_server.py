@@ -241,6 +241,8 @@ class DenseRetriever(BaseRetriever):
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
         with self._gpu_search_lock:
+            if not self.config.faiss_gpu and self.config.faiss_omp_threads > 0:
+                faiss.omp_set_num_threads(self.config.faiss_omp_threads)
             if num is None:
                 num = self.topk
             query_emb = self.encoder.encode(query)
@@ -255,6 +257,8 @@ class DenseRetriever(BaseRetriever):
 
     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         with self._gpu_search_lock:
+            if not self.config.faiss_gpu and self.config.faiss_omp_threads > 0:
+                faiss.omp_set_num_threads(self.config.faiss_omp_threads)
             if isinstance(query_list, str):
                 query_list = [query_list]
             if num is None:
@@ -316,6 +320,7 @@ class Config:
         retrieval_batch_size: int = 128,
         faiss_gpu_temp_memory_mb: int = 512,
         faiss_gpu_add_batch_size: int = 100_000,
+        faiss_omp_threads: int = 0,
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -331,6 +336,7 @@ class Config:
         self.retrieval_batch_size = retrieval_batch_size
         self.faiss_gpu_temp_memory_mb = faiss_gpu_temp_memory_mb
         self.faiss_gpu_add_batch_size = faiss_gpu_add_batch_size
+        self.faiss_omp_threads = faiss_omp_threads
 
 
 class QueryRequest(BaseModel):
@@ -349,7 +355,7 @@ def health_endpoint():
     return {
         "status": "ok",
         "index_size": int(index.ntotal) if index is not None else None,
-        "faiss_threads": faiss.omp_get_max_threads(),
+        "faiss_threads": retriever.config.faiss_omp_threads,
     }
 
 
@@ -445,6 +451,7 @@ if __name__ == "__main__":
         retrieval_batch_size=512,  # this is unused in the current retrieval implementation, which only supports single query
         faiss_gpu_temp_memory_mb=args.faiss_gpu_temp_memory_mb,
         faiss_gpu_add_batch_size=args.faiss_gpu_add_batch_size,
+        faiss_omp_threads=args.faiss_omp_threads,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
