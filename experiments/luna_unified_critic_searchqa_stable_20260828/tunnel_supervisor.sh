@@ -14,6 +14,12 @@ export NO_PROXY=127.0.0.1,localhost
 export no_proxy="$NO_PROXY"
 
 child_pid=""
+probe() {
+  curl --fail --silent --show-error --max-time 15 \
+    -H 'Content-Type: application/json' \
+    -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
+    "http://127.0.0.1:$LOCAL_PORT/retrieve" >/dev/null 2>&1
+}
 cleanup() {
   if [[ -n "$child_pid" ]]; then
     kill "$child_pid" 2>/dev/null || true
@@ -36,7 +42,16 @@ while [[ -z "${TRAIN_PID:-}" ]] || kill -0 "$TRAIN_PID" 2>/dev/null; do
     "$REMOTE_USER@$REMOTE_HOST" \
     >"$tunnel_log" 2>&1 &
   child_pid=$!
-  wait "$child_pid" || true
+  sleep 5
+  while kill -0 "$child_pid" 2>/dev/null; do
+    if ! probe; then
+      echo "[$(date)] retriever probe failed; restarting SSH forward" >>"$LOG_DIR/tunnel-supervisor.log"
+      kill "$child_pid" 2>/dev/null || true
+      break
+    fi
+    sleep 15
+  done
+  wait "$child_pid" 2>/dev/null || true
   child_pid=""
   if [[ -n "${TRAIN_PID:-}" ]] && ! kill -0 "$TRAIN_PID" 2>/dev/null; then
     break
