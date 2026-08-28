@@ -20,3 +20,7 @@ training world size; record a separate seven-GPU retriever experiment instead.
 Search backend failures are configured as fatal for the formal run. This keeps
 connection errors from being converted into ordinary tool observations and
 silently contaminating PPO trajectories.
+
+`prepare_and_benchmark.sh` waits for the asset-transfer tmux session, starts
+the local retriever, and records sequential and concurrent throughput. It does
+not launch PPO automatically; the benchmark must be reviewed first.
