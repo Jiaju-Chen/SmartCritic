@@ -4,6 +4,9 @@ set -euo pipefail
 PROJECT_ROOT=${PROJECT_ROOT:-/home/dataset-local/cjj/RL/SmartCritic-searchqa}
 PORT=${PORT:-18002}
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_unified28l_residual_searchr1_localretriever_8gpu_seed0_200it_tokengamma1_20260828}
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy="$NO_PROXY"
 
 if [[ ${CONFIG_ONLY:-0} != 1 ]]; then
   curl --fail --silent --show-error --max-time 10 \
