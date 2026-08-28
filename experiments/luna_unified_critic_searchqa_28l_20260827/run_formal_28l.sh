@@ -145,4 +145,5 @@ python -m verl.trainer.main_ppo \
   trainer.resume_mode=disable \
   ray_init.num_cpus=64 \
   +ray_init._temp_dir="$RAY_TMPDIR" \
-  "${HYDRA_ARGS[@]}"
+  "${HYDRA_ARGS[@]}" \
+  "$@"

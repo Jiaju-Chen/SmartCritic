@@ -342,6 +342,17 @@ class QueryRequest(BaseModel):
 app = FastAPI()
 
 
+@app.get("/health")
+def health_endpoint():
+    """Return a cheap readiness signal without executing a retrieval."""
+    index = getattr(retriever, "index", None)
+    return {
+        "status": "ok",
+        "index_size": int(index.ntotal) if index is not None else None,
+        "faiss_threads": faiss.omp_get_max_threads(),
+    }
+
+
 @app.post("/retrieve")
 def retrieve_endpoint(request: QueryRequest):
     """
@@ -407,9 +418,17 @@ if __name__ == "__main__":
         default=100_000,
         help="Vectors transferred per batch when building a single-GPU flat index.",
     )
+    parser.add_argument(
+        "--faiss_omp_threads",
+        type=int,
+        default=0,
+        help="FAISS CPU search threads. Zero preserves the library default.",
+    )
     parser.add_argument("--port", type=int, default=8000, help="Port to run the FastAPI server on.")
 
     args = parser.parse_args()
+    if args.faiss_omp_threads > 0:
+        faiss.omp_set_num_threads(args.faiss_omp_threads)
 
     # 1) Build a config (could also parse from arguments).
     #    In real usage, you'd parse your CLI arguments or environment variables.

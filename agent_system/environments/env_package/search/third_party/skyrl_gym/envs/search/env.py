@@ -16,6 +16,7 @@ class SearchEnv(BaseTextEnv):
 
     def __init__(self, env_config: DictConfig):
         super().__init__()
+        self.fail_on_search_error = bool(env_config.get("fail_on_error", False))
         # Initialize the tools
         # name is hardcoded to "SearchToolGroup", with tool name "search"
         self.tool_group = SearchToolGroup(
@@ -23,6 +24,7 @@ class SearchEnv(BaseTextEnv):
             topk=env_config.topk,
             timeout=env_config.timeout,
             log_requests=env_config.log_requests,
+            fail_on_error=self.fail_on_search_error,
         )
         self.init_tool_groups([self.tool_group])
         
@@ -98,6 +100,8 @@ class SearchEnv(BaseTextEnv):
             query = self._parse_action(action)
             observation = self._execute_tool("SearchToolGroup", "search", query)
         except Exception as e:
+            if self.fail_on_search_error:
+                raise RuntimeError("Search backend is unavailable; aborting rollout.") from e
             error = str(e)
             observation = None
 

@@ -161,11 +161,19 @@ class SearchToolGroup(ToolGroup):
                 logger.info(f"Created shared session pool for {base_url}")
             return cls._session_pool[base_url]
 
-    def __init__(self, search_url="http://127.0.0.1:8000/retrieve", topk=3, timeout=DEFAULT_TIMEOUT, log_requests=True):
+    def __init__(
+        self,
+        search_url="http://127.0.0.1:8000/retrieve",
+        topk=3,
+        timeout=DEFAULT_TIMEOUT,
+        log_requests=True,
+        fail_on_error=False,
+    ):
         self.search_url = search_url
         self.topk = topk
         self.timeout = timeout
         self.log_requests = log_requests
+        self.fail_on_error = fail_on_error
 
         # Extract base URL for session sharing
         parsed_url = urlparse(self.search_url)
@@ -214,6 +222,8 @@ class SearchToolGroup(ToolGroup):
             metadata["status"] = "api_error"
             result_text = json.dumps({"result": f"Search error: {error_msg}"})
             logger.error(f"Batch search: API error occurred: {error_msg}")
+            if self.fail_on_error:
+                raise RuntimeError(error_msg)
         elif api_response:
             logger.debug(f"Batch search: API Response: {api_response}")
             metadata["api_response"] = api_response
