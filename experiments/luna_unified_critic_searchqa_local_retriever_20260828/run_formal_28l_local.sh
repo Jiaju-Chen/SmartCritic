@@ -24,4 +24,5 @@ export SEARCH_URL="http://127.0.0.1:$PORT/retrieve"
 
 exec bash \
   "$PROJECT_ROOT/experiments/luna_unified_critic_searchqa_28l_20260827/run_formal_28l.sh" \
-  +env.search.fail_on_error=true
+  +env.search.fail_on_error=true \
+  "$@"
