@@ -15,10 +15,10 @@ export no_proxy="$NO_PROXY"
 
 child_pid=""
 probe() {
-  curl --fail --silent --show-error --max-time 15 \
-    -H 'Content-Type: application/json' \
-    -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
-    "http://127.0.0.1:$LOCAL_PORT/retrieve" >/dev/null 2>&1
+  # Probe only the HTTP forwarding path.  A retrieval query is expensive under
+  # rollout load and can falsely trigger a reconnect while the service is busy.
+  curl --silent --show-error --max-time 5 \
+    "http://127.0.0.1:$LOCAL_PORT/" >/dev/null 2>&1
 }
 cleanup() {
   if [[ -n "$child_pid" ]]; then
