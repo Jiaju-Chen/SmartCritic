@@ -5,12 +5,14 @@ PROJECT_ROOT=${PROJECT_ROOT:-/home/dataset-local/cjj/RL/SmartCritic-searchqa}
 PORT=${PORT:-18002}
 RUN_NAME=${RUN_NAME:-ppo_qwen25_15b_luna_unified28l_residual_searchr1_localretriever_8gpu_seed0_200it_tokengamma1_20260828}
 
-curl --fail --silent --show-error --max-time 10 \
-  "http://127.0.0.1:$PORT/health" >/dev/null
-curl --fail --silent --show-error --max-time 60 \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
-  "http://127.0.0.1:$PORT/retrieve" >/dev/null
+if [[ ${CONFIG_ONLY:-0} != 1 ]]; then
+  curl --fail --silent --show-error --max-time 10 \
+    "http://127.0.0.1:$PORT/health" >/dev/null
+  curl --fail --silent --show-error --max-time 60 \
+    -H 'Content-Type: application/json' \
+    -d '{"query":"Who wrote Pride and Prejudice?","topk":3,"return_scores":false}' \
+    "http://127.0.0.1:$PORT/retrieve" >/dev/null
+fi
 
 export PROJECT_ROOT
 export RUN_NAME
