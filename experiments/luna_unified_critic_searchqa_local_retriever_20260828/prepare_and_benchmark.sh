@@ -8,6 +8,9 @@ TRANSFER_SESSION=${TRANSFER_SESSION:-searchqa_local_assets_20260828}
 RETRIEVER_SESSION=${RETRIEVER_SESSION:-searchqa_local_retriever_20260828}
 PORT=${PORT:-18002}
 mkdir -p "$RUN_ROOT"
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy="$NO_PROXY"
 
 while tmux has-session -t "$TRANSFER_SESSION" 2>/dev/null; do
   echo "[$(date)] waiting for asset transfer"
