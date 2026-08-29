@@ -200,7 +200,31 @@ class DenseRetriever(BaseRetriever):
         # safe for concurrent searches from FastAPI's worker threads.
         self._gpu_search_lock = threading.Lock()
         self.index = faiss.read_index(self.index_path)
+        self.torch_gpu_flat = bool(getattr(config, "torch_gpu_flat", False))
+        self.torch_gpu_chunk_size = int(getattr(config, "torch_gpu_chunk_size", 1_000_000))
+        self.torch_index = None
+        self.torch_device = None
+        if self.torch_gpu_flat:
+            if not torch.cuda.is_available():
+                raise RuntimeError("torch_gpu_flat requires a CUDA device")
+            if self.index.metric_type != faiss.METRIC_INNER_PRODUCT:
+                raise ValueError("torch_gpu_flat currently supports inner-product FAISS indexes only")
+            self.torch_device = torch.device("cuda")
+            # Keep the official FAISS vectors, but execute flat inner product
+            # with torch when faiss itself has no CUDA build.
+            self.torch_index = torch.empty(
+                (self.index.ntotal, self.index.d),
+                dtype=torch.float16,
+                device=self.torch_device,
+            )
+            for start in range(0, self.index.ntotal, self.torch_gpu_chunk_size):
+                count = min(self.torch_gpu_chunk_size, self.index.ntotal - start)
+                vectors = np.ascontiguousarray(self.index.reconstruct_n(start, count), dtype=np.float16)
+                self.torch_index[start : start + count].copy_(torch.from_numpy(vectors), non_blocking=True)
+            torch.cuda.synchronize(self.torch_device)
         self.gpu_resources = None
+        if config.faiss_gpu and self.torch_gpu_flat:
+            raise ValueError("faiss_gpu and torch_gpu_flat are mutually exclusive")
         if config.faiss_gpu:
             gpu_count = faiss.get_num_gpus()
             if gpu_count == 1:
@@ -241,6 +265,40 @@ class DenseRetriever(BaseRetriever):
 
     def _search(self, query: str, num: int = None, return_score: bool = False):
         with self._gpu_search_lock:
+            if self.torch_gpu_flat:
+                if num is None:
+                    num = self.topk
+                query_emb = self.encoder.encode(query)
+                query_tensor = torch.from_numpy(query_emb).to(
+                    device=self.torch_device,
+                    dtype=torch.float16,
+                )[0]
+                best_scores = None
+                best_idxs = None
+                with torch.inference_mode():
+                    for start in range(0, self.index.ntotal, self.torch_gpu_chunk_size):
+                        count = min(self.torch_gpu_chunk_size, self.index.ntotal - start)
+                        scores = torch.matmul(self.torch_index[start : start + count], query_tensor)
+                        local_k = min(num, count)
+                        local_scores, local_idxs = torch.topk(scores, k=local_k, largest=True, sorted=False)
+                        local_idxs = local_idxs + start
+                        if best_scores is None:
+                            best_scores, best_idxs = local_scores, local_idxs
+                        else:
+                            merged_scores = torch.cat((best_scores, local_scores))
+                            merged_idxs = torch.cat((best_idxs, local_idxs))
+                            keep = min(num, merged_scores.numel())
+                            best_scores, keep_positions = torch.topk(
+                                merged_scores, k=keep, largest=True, sorted=False
+                            )
+                            best_idxs = merged_idxs[keep_positions]
+                idxs = best_idxs.cpu().numpy().astype(np.int64, copy=False)
+                scores = best_scores.float().cpu().numpy()
+                results = load_docs(self.corpus, idxs)
+                if return_score:
+                    return results, scores
+                return results
+
             if not self.config.faiss_gpu and self.config.faiss_omp_threads > 0:
                 faiss.omp_set_num_threads(self.config.faiss_omp_threads)
             if num is None:
@@ -321,6 +379,8 @@ class Config:
         faiss_gpu_temp_memory_mb: int = 512,
         faiss_gpu_add_batch_size: int = 100_000,
         faiss_omp_threads: int = 0,
+        torch_gpu_flat: bool = False,
+        torch_gpu_chunk_size: int = 1_000_000,
     ):
         self.retrieval_method = retrieval_method
         self.retrieval_topk = retrieval_topk
@@ -337,6 +397,8 @@ class Config:
         self.faiss_gpu_temp_memory_mb = faiss_gpu_temp_memory_mb
         self.faiss_gpu_add_batch_size = faiss_gpu_add_batch_size
         self.faiss_omp_threads = faiss_omp_threads
+        self.torch_gpu_flat = torch_gpu_flat
+        self.torch_gpu_chunk_size = torch_gpu_chunk_size
 
 
 class QueryRequest(BaseModel):
@@ -356,6 +418,7 @@ def health_endpoint():
         "status": "ok",
         "index_size": int(index.ntotal) if index is not None else None,
         "faiss_threads": retriever.config.faiss_omp_threads,
+        "backend": "torch_gpu_flat" if getattr(retriever, "torch_gpu_flat", False) else "faiss",
     }
 
 
@@ -430,6 +493,17 @@ if __name__ == "__main__":
         default=0,
         help="FAISS CPU search threads. Zero preserves the library default.",
     )
+    parser.add_argument(
+        "--torch_gpu_flat",
+        action="store_true",
+        help="Run the official flat inner-product index with torch on one CUDA device.",
+    )
+    parser.add_argument(
+        "--torch_gpu_chunk_size",
+        type=int,
+        default=1_000_000,
+        help="Number of index vectors processed per torch top-k chunk.",
+    )
     parser.add_argument("--port", type=int, default=8000, help="Port to run the FastAPI server on.")
     parser.add_argument(
         "--host",
@@ -458,6 +532,8 @@ if __name__ == "__main__":
         faiss_gpu_temp_memory_mb=args.faiss_gpu_temp_memory_mb,
         faiss_gpu_add_batch_size=args.faiss_gpu_add_batch_size,
         faiss_omp_threads=args.faiss_omp_threads,
+        torch_gpu_flat=args.torch_gpu_flat,
+        torch_gpu_chunk_size=args.torch_gpu_chunk_size,
     )
 
     # 2) Instantiate a global retriever so it is loaded once and reused.
