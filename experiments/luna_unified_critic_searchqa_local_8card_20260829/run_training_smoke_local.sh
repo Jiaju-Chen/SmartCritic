@@ -9,6 +9,9 @@ SNAP=${SNAP:-/home/dataset-local/cjj/RL/.cache/huggingface/models--Qwen--Qwen2.5
 PORT=${PORT:-18002}
 TRAIN_GPUS=${TRAIN_GPUS:-0,1,2,3,4,5,6}
 NUM_GPUS=${NUM_GPUS:-7}
+USE_SMOKE_DATA=${USE_SMOKE_DATA:-1}
+TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-7}
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-7}
 RUN_NAME=${RUN_NAME:-luna_unified_searchqa_local_train_smoke_20260829}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/luna_unified_searchqa}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
@@ -20,12 +23,20 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 export NO_PROXY=127.0.0.1,localhost
 export no_proxy="$NO_PROXY"
 
+mkdir -p "$RUN_DIR"/{home,logs,wandb,data} "$CKPT_DIR" "$RAY_TMP_ROOT" "$FAST_TMP_ROOT"
+if [[ "$USE_SMOKE_DATA" == 1 ]]; then
+  DATA_ROOT="$RUN_DIR/data"
+  "$ENV_ROOT/bin/python" experiments/luna_unified_critic_searchqa_20260825/make_smoke_dataset.py \
+    --output-dir "$DATA_ROOT" \
+    --train-size "$TRAIN_BATCH_SIZE" \
+    --val-size "$VAL_BATCH_SIZE"
+fi
+
 test -s "$DATA_ROOT/train.parquet"
 test -s "$DATA_ROOT/test.parquet"
 test -s "$SNAP/config.json"
 curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$PORT/health" >/dev/null
 
-mkdir -p "$RUN_DIR"/{home,logs,wandb} "$CKPT_DIR" "$RAY_TMP_ROOT" "$FAST_TMP_ROOT"
 export CUDA_VISIBLE_DEVICES="$TRAIN_GPUS"
 export HOME="$RUN_DIR/home"
 export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
@@ -61,8 +72,8 @@ exec python -m verl.trainer.main_ppo \
   reward_model.use_step_rewards=True \
   data.train_files="$DATA_ROOT/train.parquet" \
   data.val_files="$DATA_ROOT/test.parquet" \
-  data.train_batch_size=7 \
-  data.val_batch_size=7 \
+  data.train_batch_size="$TRAIN_BATCH_SIZE" \
+  data.val_batch_size="$VAL_BATCH_SIZE" \
   data.max_prompt_length=4096 \
   data.max_response_length=256 \
   data.filter_overlong_prompts=True \

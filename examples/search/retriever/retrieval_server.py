@@ -280,7 +280,7 @@ class DenseRetriever(BaseRetriever):
                         count = min(self.torch_gpu_chunk_size, self.index.ntotal - start)
                         scores = torch.matmul(self.torch_index[start : start + count], query_tensor)
                         local_k = min(num, count)
-                        local_scores, local_idxs = torch.topk(scores, k=local_k, largest=True, sorted=False)
+                        local_scores, local_idxs = torch.topk(scores, k=local_k, largest=True, sorted=True)
                         local_idxs = local_idxs + start
                         if best_scores is None:
                             best_scores, best_idxs = local_scores, local_idxs
@@ -289,7 +289,7 @@ class DenseRetriever(BaseRetriever):
                             merged_idxs = torch.cat((best_idxs, local_idxs))
                             keep = min(num, merged_scores.numel())
                             best_scores, keep_positions = torch.topk(
-                                merged_scores, k=keep, largest=True, sorted=False
+                                merged_scores, k=keep, largest=True, sorted=True
                             )
                             best_idxs = merged_idxs[keep_positions]
                 idxs = best_idxs.cpu().numpy().astype(np.int64, copy=False)
