@@ -110,7 +110,7 @@ exec python -m verl.trainer.main_ppo \
   env.search.search_url="http://127.0.0.1:$PORT/retrieve" \
   env.search.topk=3 \
   env.search.timeout=30 \
-  env.search.fail_on_error=true \
+  +env.search.fail_on_error=true \
   env.resources_per_worker.num_cpus=0.25 \
   trainer.critic_warmup=0 \
   "trainer.logger=['console']" \
