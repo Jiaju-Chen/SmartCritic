@@ -16,6 +16,10 @@ CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_unified_searchq
 RAY_TMP_ROOT=${RAY_TMP_ROOT:-/dev/shm/cjj_luna_searchqa_local_smoke_ray}
 FAST_TMP_ROOT=${FAST_TMP_ROOT:-/dev/shm/cjj_luna_searchqa_local_smoke_tmp}
 
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY=127.0.0.1,localhost
+export no_proxy="$NO_PROXY"
+
 test -s "$DATA_ROOT/train.parquet"
 test -s "$DATA_ROOT/test.parquet"
 test -s "$SNAP/config.json"
@@ -42,7 +46,6 @@ export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
-unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
 cd "$PROJECT_ROOT"
 exec python -m verl.trainer.main_ppo \
