@@ -61,8 +61,8 @@ exec python -m verl.trainer.main_ppo \
   reward_model.use_step_rewards=True \
   data.train_files="$DATA_ROOT/train.parquet" \
   data.val_files="$DATA_ROOT/test.parquet" \
-  data.train_batch_size=8 \
-  data.val_batch_size=4 \
+  data.train_batch_size=7 \
+  data.val_batch_size=7 \
   data.max_prompt_length=4096 \
   data.max_response_length=256 \
   data.filter_overlong_prompts=True \
@@ -70,7 +70,7 @@ exec python -m verl.trainer.main_ppo \
   data.return_raw_chat=True \
   actor_rollout_ref.model.path="$SNAP" \
   actor_rollout_ref.actor.optim.lr=1e-6 \
-  actor_rollout_ref.actor.ppo_mini_batch_size=8 \
+  actor_rollout_ref.actor.ppo_mini_batch_size=7 \
   actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
   actor_rollout_ref.actor.use_kl_loss=True \
   actor_rollout_ref.actor.kl_loss_coef=0.001 \
@@ -98,7 +98,7 @@ exec python -m verl.trainer.main_ppo \
   critic.model.num_value_heads=2 \
   critic.unified_luna_turn_loss_coef=1.0 \
   critic.optim.lr=1e-5 \
-  critic.ppo_mini_batch_size=8 \
+  critic.ppo_mini_batch_size=7 \
   critic.ppo_micro_batch_size_per_gpu=1 \
   critic.model.fsdp_config.param_offload=False \
   critic.model.fsdp_config.optimizer_offload=False \
@@ -125,7 +125,7 @@ exec python -m verl.trainer.main_ppo \
   trainer.save_freq=1 \
   trainer.checkpoint_slot_mode=best_latest \
   trainer.best_checkpoint_metric=val/success_rate \
-  trainer.monitor_validation_size=4 \
+  trainer.monitor_validation_size=7 \
   trainer.val_before_train=False \
   trainer.resume_mode=disable \
   ray_init.num_cpus=32 \
