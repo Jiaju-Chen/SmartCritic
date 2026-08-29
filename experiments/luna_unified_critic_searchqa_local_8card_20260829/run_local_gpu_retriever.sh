@@ -6,7 +6,7 @@ ENV_ROOT=${ENV_ROOT:-/home/dataset-local/conda/envs/verl-agent-webshop}
 ASSET_ROOT=${ASSET_ROOT:-/home/dataset-local/cjj/RL/data/searchR1_official_retriever}
 PORT=${PORT:-18002}
 RETRIEVER_GPU=${RETRIEVER_GPU:-7}
-FAISS_GPU=${FAISS_GPU:-1}
+FAISS_GPU=${FAISS_GPU:-0}
 FAISS_OMP_THREADS=${FAISS_OMP_THREADS:-16}
 
 test -s "$ASSET_ROOT/index/e5_Flat.index"
