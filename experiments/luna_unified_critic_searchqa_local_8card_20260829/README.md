@@ -33,6 +33,16 @@ bash experiments/luna_unified_critic_searchqa_local_8card_20260829/acceptance_te
 SearchQA 环境搜索和最终答案奖励测试。验收失败时脚本返回非零状态，不会
 把错误检索结果当成通过。
 
+训练链路还提供一个单步冒烟脚本。它要求本地检索器已经启动，并固定让检索器
+占用 GPU 7、训练使用 GPU 0--6：
+
+```bash
+bash experiments/luna_unified_critic_searchqa_local_8card_20260829/run_training_smoke_local.sh
+```
+
+这个脚本只读取官方 SearchQA 处理后数据，执行 1 个训练更新和 1 次小验证，
+默认关闭在线实验记录；它不是正式训练入口。
+
 ## 训练公平性
 
 检索器占用第 8 张卡后，正式训练应使用 GPU 0-6，并显式设置
