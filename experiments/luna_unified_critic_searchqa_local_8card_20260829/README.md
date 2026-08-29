@@ -43,6 +43,18 @@ bash experiments/luna_unified_critic_searchqa_local_8card_20260829/run_training_
 这个脚本只读取官方 SearchQA 处理后数据，执行 1 个训练更新和 1 次小验证，
 默认关闭在线实验记录；它不是正式训练入口。
 
+通过验收后，正式 Luna Unified 训练使用独立入口：
+
+```bash
+bash experiments/luna_unified_critic_searchqa_local_8card_20260829/run_formal_luna_unified_7gpu.sh
+```
+
+该入口保留 2 层共享评论器主干、轮次和词元两个价值头及残差混合优势。相对
+原 8 卡配置，它只把训练批量从 256 调整为 252、策略和评论器小批量从 512
+调整为 504，并把训练设备数调整为 7；每个任务仍采样 5 条轨迹，其他算法、
+环境、奖励、学习率和 200 步训练设置不变。检索错误会直接终止训练，避免把
+通信错误作为环境观察写入轨迹。
+
 ## 训练公平性
 
 检索器占用第 8 张卡后，正式训练应使用 GPU 0-6，并显式设置
@@ -50,4 +62,5 @@ bash experiments/luna_unified_critic_searchqa_local_8card_20260829/run_training_
 直接把两者的速度作为公平结论。若必须保留 8 张训练卡，应把检索器放到独立
 的计算节点，或者使用已经通过压力测试的集群检索服务。
 
-本目录只负责本地检索器和验收，不会自动启动大规模训练。
+正式训练每 50 步做一次完整验证并更新 `best` 和 `latest` 两个 checkpoint
+槽位；WandB 使用项目 `verl_agent_searchqa_critic_ablation`。
