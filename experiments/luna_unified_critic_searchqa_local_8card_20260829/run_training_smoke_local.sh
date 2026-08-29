@@ -13,8 +13,8 @@ RUN_NAME=${RUN_NAME:-luna_unified_searchqa_local_train_smoke_20260829}
 RUN_ROOT=${RUN_ROOT:-/home/dataset-local/cjj/RL/runs/luna_unified_searchqa}
 RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-/home/dataset-local/cjj/RL/checkpoints/luna_unified_searchqa/$RUN_NAME}
-RAY_TMP_ROOT=${RAY_TMP_ROOT:-/dev/shm/cjj_luna_searchqa_local_smoke_ray}
-FAST_TMP_ROOT=${FAST_TMP_ROOT:-/dev/shm/cjj_luna_searchqa_local_smoke_tmp}
+RAY_TMP_ROOT=${RAY_TMP_ROOT:-/dev/shm/scq-smoke-ray}
+FAST_TMP_ROOT=${FAST_TMP_ROOT:-/dev/shm/scq-smoke-tmp}
 
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 export NO_PROXY=127.0.0.1,localhost
