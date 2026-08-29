@@ -431,6 +431,12 @@ if __name__ == "__main__":
         help="FAISS CPU search threads. Zero preserves the library default.",
     )
     parser.add_argument("--port", type=int, default=8000, help="Port to run the FastAPI server on.")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Interface to bind. Use 127.0.0.1 when the retriever is local-only.",
+    )
 
     args = parser.parse_args()
     if args.faiss_omp_threads > 0:
@@ -458,4 +464,4 @@ if __name__ == "__main__":
     retriever = get_retriever(config)
 
     # 3) Launch the server. By default, it listens on http://127.0.0.1:8000
-    uvicorn.run(app, host="0.0.0.0", port=args.port)
+    uvicorn.run(app, host=args.host, port=args.port)
