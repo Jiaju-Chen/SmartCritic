@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-08-30T21:31:36.228814",
+  "remote_source_head": "f4449f42da1a98dc0ad503f0e2aff3a17a1ec5cf",
+  "experiment_source_commit": "778c5e2",
+  "training_code_sha256": {
+    "verl/trainer/ppo/core_algos.py": "ec8e6cc24b4aae7a5a9986232dcaf64c0b064ae37e6027445bfdf92867a10348",
+    "verl/trainer/ppo/ray_trainer.py": "7e375d01a6023afac5ff354dd938313ffe9f306a306393587f656f3dbee3fbe9",
+    "verl/workers/actor/dp_actor.py": "53427cccf5a65d8f5381566125af8223691df2b831d62b61e5370e0eb960ddae",
+    "verl/workers/critic/dp_critic.py": "1a5bc0357496d3555686c59bb065fd150788222d691ec1b4ce89bda72eeb5013",
+    "verl/workers/fsdp_workers.py": "f7086011ade18f96c0c2b24dc12d32f10b93108b63482b2319326bd771829eab",
+    "verl/utils/torch_functional.py": "d1596250b0e53d0d38223ecd158e673494da228581cf90c518d48c420389167b",
+    "verl/trainer/config/ppo_trainer.yaml": "d0785578fcd3468083a26a5dd3c7952b294fe234c593055d673be17d188fee6b",
+    "agent_system/environments/env_package/search/third_party/skyrl_gym/tools/search.py": "fda98ddbb03a85e5b1383ef21066e4b36802ac7e54aaa5c5794651cf3af461d4",
+    "experiments/luna_unified_critic_searchqa_20260825/run_formal.sh": "e230e47d8a20106b02ef7c8ecc1042590d5e348542c0ddcfefbf91ade1464f9e",
+    "experiments/luna_unified_critic_searchqa_remote_8card_20260829/run_formal_luna_unified_8gpu.sh": "296f0d536291a46687498ae0cc401d2c851cf12a5cb29d13b3ab6f86ed8c4d62"
+  },
+  "assets": {
+    "/home/dataset-local/cjj/RL/data/searchR1_official/processed/train.parquet": {
+      "bytes": 359419360,
+      "sha256": "355aad9af1bc2f1f445e9904f5cbb2de98e09aa5827cf6d3bfd1a66cc239a1df"
+    },
+    "/home/dataset-local/cjj/RL/runs/luna_unified_searchqa/val_subsets/searchqa_test_stratified512_seed0.parquet": {
+      "bytes": 796313,
+      "sha256": "60fa49614c3b54be62fe09511a4764279e628a1fe8ea20927b389366b0f7aa0a"
+    }
+  },
+  "reference_run": "lunauni8formal0830",
+  "candidate_run": "lunauni8white0830",
+  "notes": "Existing search transport working-tree patch is retained, as in the completed reference run. Only the new experiment directory was deployed; training algorithms were not changed."
+}

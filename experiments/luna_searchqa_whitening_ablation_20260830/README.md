@@ -53,3 +53,18 @@ to keep the training code identical to the reference.
 Compare update-matched monitoring curves and the predetermined update-200 endpoint.
 Do not attribute a difference between this run and an adaptive-alpha run solely
 to whitening. Audit the deployment source hashes and data files before launch.
+
+## Deployment audit
+
+Started in tmux `searchqa_luna2l_whiten_20260830` on 2026-08-30. The preflight
+comparison passed with exactly four changed fields: whitening, experiment name,
+checkpoint directory, and Ray temporary directory. `deployment_record.json`
+records the deployed experiment commit, runtime code hashes, and input file hashes.
+The remote checkout retains its pre-existing search-transport working-tree patch;
+that file and all algorithm files were deliberately not overwritten.
+
+Reference monitoring: update 150 = 201/512 (39.2578125%), update 200 = 199/512
+(38.8671875%). Reference best/latest slots are updates 150/200. All 200 updates
+completed; summed step timings were 20.58 hours. No timeout, connection-error,
+exhausted-search-retry, traceback, or OOM strings were found in its training log.
+This log check is not a guarantee about every internal request at the retriever.
