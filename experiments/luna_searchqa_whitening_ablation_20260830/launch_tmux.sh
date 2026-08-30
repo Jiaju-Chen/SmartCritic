@@ -20,9 +20,15 @@ if [[ -n "$active_gpu_processes" ]]; then
   exit 1
 fi
 mkdir -p "$RUN_DIR/logs"
-CONFIG_ONLY=1 bash "$EXPERIMENT_DIR/run_train.sh" --resolve >"$RUN_DIR/logs/preflight_config.yaml" 2>"$RUN_DIR/logs/preflight.stderr.log"
+stamp=$(date +%Y%m%d-%H%M%S)
+config_file="$RUN_DIR/logs/preflight_config-$stamp.yaml"
+error_file="$RUN_DIR/logs/preflight-$stamp.stderr.log"
+if ! CONFIG_ONLY=1 bash "$EXPERIMENT_DIR/run_train.sh" --resolve >"$config_file" 2>"$error_file"; then
+  cat "$error_file" >&2
+  exit 1
+fi
 "$ENV_ROOT/bin/python" "$EXPERIMENT_DIR/verify_config.py" \
-  "$RUN_DIR/logs/preflight_config.yaml" | tee "$RUN_DIR/logs/config_comparison.json"
+  "$config_file" | tee "$RUN_DIR/logs/config_comparison-$stamp.json"
 
 printf -v command '%q ' env PROJECT_ROOT="$PROJECT_ROOT" ENV_ROOT="$ENV_ROOT" \
   RUN_NAME="$RUN_NAME" WANDB_RUN_ID="$WANDB_RUN_ID" SESSION_NAME="$SESSION_NAME" \
