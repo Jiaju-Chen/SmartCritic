@@ -204,18 +204,22 @@ def compute_dual_critic_hybrid_gae(
     token_residual_scale: float = 1.0,
     composition_mode: str = "residual",
     whiten_advantages: bool = True,
+    turn_value_position: str = "prompt_end",
 ):
     """Combine skip-observation token credit with a separate turn critic.
 
     The token critic supplies within-turn credit. The turn critic is evaluated
-    at the first generated-token position, whose hidden state is aligned with
-    the observation boundary immediately before the action.
+    at the first aligned position (before the action) by default. The
+    action_end ablation uses a post-token-aligned turn head and its last
+    valid slot; its advantage still belongs to this same action.
 
     ``composition_mode`` isolates the actor-credit ablations while leaving both
     critic targets unchanged: ``residual`` uses centered token credit (Luna),
     ``direct`` uses uncentered token credit, and the two ``*_only`` modes select
     one branch without changing critic training.
     """
+    if turn_value_position not in ("prompt_end", "action_end"):
+        raise ValueError(f"Unknown turn_value_position: {turn_value_position}")
     shapes = {
         token_level_rewards.shape,
         token_values.shape,
@@ -269,7 +273,7 @@ def compute_dual_critic_hybrid_gae(
                 if valid_positions.numel() == 0:
                     continue
 
-                boundary_position = int(valid_positions[0])
+                boundary_position = int(valid_positions[-1 if turn_value_position == "action_end" else 0])
                 current_turn_value = turn_values[row, boundary_position]
                 turn_reward = token_level_rewards[row, valid_positions].sum()
                 delta = turn_reward + float(turn_gamma) * next_turn_value - current_turn_value

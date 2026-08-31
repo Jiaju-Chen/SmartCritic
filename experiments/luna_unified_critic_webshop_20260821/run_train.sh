@@ -152,4 +152,5 @@ python -m verl.trainer.main_ppo \
   trainer.val_before_train="$VAL_BEFORE_TRAIN" \
   trainer.resume_mode=auto \
   ray_init.num_cpus="$RAY_NUM_CPUS" \
-  +ray_init._temp_dir="$RAY_TMPDIR"
+  +ray_init._temp_dir="$RAY_TMPDIR" \
+  "$@"

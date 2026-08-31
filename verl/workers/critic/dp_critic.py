@@ -33,6 +33,7 @@ from verl.utils.seqlen_balancing import get_reverse_idx, rearrange_micro_batches
 from verl.utils.torch_functional import masked_mean
 from verl.utils.ulysses import gather_outpus_and_unpad, ulysses_pad_and_slice_inputs
 from verl.workers.critic import BasePPOCritic
+from verl.workers.critic.luna_value_alignment import align_luna_value_logits
 from verl.utils.device import get_device_name, get_torch_device, is_npu_available, is_cuda_available
 
 
@@ -53,9 +54,15 @@ class DataParallelPPOCritic(BasePPOCritic):
         self.use_remove_padding = self.config.model.get("use_remove_padding", False)
         self.num_value_heads = int(self.config.model.get("num_value_heads", 1))
         self.turn_loss_coef = float(self.config.get("unified_luna_turn_loss_coef", 1.0))
+        self.turn_value_position = self.config.get("turn_value_position", "prompt_end")
+        if self.turn_value_position not in ("prompt_end", "action_end"):
+            raise ValueError(f"Unknown turn_value_position: {self.turn_value_position}")
+        if self.turn_value_position == "action_end" and self.num_value_heads != 2:
+            raise ValueError("action_end readout requires a unified two-head critic")
         if self.num_value_heads not in (1, 2):
             raise ValueError(f"critic.model.num_value_heads must be 1 or 2, got {self.num_value_heads}")
         print(f"Critic use_remove_padding={self.use_remove_padding}")
+        print(f"Critic turn_value_position={self.turn_value_position}")
 
         self.ulysses_sequence_parallel_size = self.config.get("ulysses_sequence_parallel_size", 1)
         self.device_name = get_device_name()
@@ -105,8 +112,7 @@ class DataParallelPPOCritic(BasePPOCritic):
                     values_rmpad = gather_outpus_and_unpad(values_rmpad, gather_dim=0, unpad_dim=0, padding_size=pad_size)
 
                 # pad it back
-                values = pad_input(values_rmpad, indices=indices, batch=batch, seqlen=seqlen).squeeze(-1)
-                values = values[:, -response_length - 1 : -1]
+                values = pad_input(values_rmpad, indices=indices, batch=batch, seqlen=seqlen)
             else:
                 output = self.critic_module(
                     input_ids=input_ids,
@@ -116,8 +122,7 @@ class DataParallelPPOCritic(BasePPOCritic):
                     use_cache=False,
                 )  # prevent model thinks we are generating
                 values = output.logits
-                values = values[:, -response_length - 1 : -1].squeeze(-1)
-            return values
+            return align_luna_value_logits(values, response_length, self.turn_value_position)
 
     def _optimizer_step(self):
         assert self.config.grad_clip is not None
@@ -177,7 +182,10 @@ class DataParallelPPOCritic(BasePPOCritic):
             values = values[revert_indices]
         value_mask = attention_mask[:, -response_length - 1 : -1]
         if values.ndim == 3:
-            value_mask = value_mask.unsqueeze(-1)
+            if self.turn_value_position == "action_end":
+                value_mask = torch.stack((value_mask, attention_mask[:, -response_length:]), dim=-1)
+            else:
+                value_mask = value_mask.unsqueeze(-1)
         values = values * value_mask
         return values
 

@@ -340,6 +340,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             token_residual_scale=hybrid_advantage_cfg.get("token_residual_scale", 1.0),
             composition_mode=hybrid_advantage_cfg.get("composition_mode", "residual"),
             whiten_advantages=hybrid_advantage_cfg.get("whiten_advantages", True),
+            turn_value_position=hybrid_advantage_cfg.get("turn_value_position", "prompt_end"),
         )
         data.batch["advantages"] = advantages
         data.batch["returns"] = returns
@@ -553,6 +554,11 @@ class RayPPOTrainer:
 
         self.use_turn_critic = self.config.algorithm.adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID
         self.use_unified_luna = self.config.algorithm.adv_estimator == AdvantageEstimator.LUNA_UNIFIED
+        turn_position = self.config.algorithm.hybrid_advantage.get("turn_value_position", "prompt_end")
+        if turn_position == "action_end" and not self.use_unified_luna:
+            raise ValueError("action_end readout is supported only by luna_unified")
+        if self.use_unified_luna and self.config.critic.get("turn_value_position", "prompt_end") != turn_position:
+            raise ValueError("Critic readout and GAE turn_value_position must match")
         if self.use_turn_critic and Role.TurnCritic not in role_worker_mapping:
             raise ValueError("dual_critic_hybrid requires a TurnCritic worker")
         if self.use_unified_luna and int(self.config.critic.model.get("num_value_heads", 1)) != 2:
@@ -1477,6 +1483,13 @@ class RayPPOTrainer:
                                     "hybrid/turn_value_mean": masked_mean(batch.batch["turn_values"], turn_mask).item(),
                                 }
                             )
+                            from verl.trainer.ppo.luna_diagnostics import turn_boundary_diagnostics
+
+                            metrics.update(turn_boundary_diagnostics(
+                                turn_advantages, batch.batch["turn_values"],
+                                batch.batch["turn_returns"], turn_mask,
+                                batch.non_tensor_batch.get("episode_success"),
+                            ))
 
                     # update critic
                     if self.use_critic:

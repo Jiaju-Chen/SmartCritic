@@ -200,6 +200,7 @@ critic:
   loss_agg_mode: ${actor_rollout_ref.actor.loss_agg_mode}
   # Relative weight of the turn-boundary value loss when num_value_heads=2.
   unified_luna_turn_loss_coef: 1.0
+  turn_value_position: ${algorithm.hybrid_advantage.turn_value_position}
   checkpoint:
     contents: ['model', 'optimizer', 'extra']  # with 'hf_model' you can save whole model as hf format, now only use sharded model checkpoint to save space
 
@@ -316,6 +317,7 @@ algorithm:
     whiten: True
     epsilon: 1e-6
   hybrid_advantage:
+    turn_value_position: prompt_end
     turn_gamma: 1.0
     turn_lam: 0.95
     token_residual_scale: 1.0
