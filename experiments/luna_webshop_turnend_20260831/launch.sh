@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mode=${1:-formal}
-case "$mode" in formal|smoke) ;; *) exit 2 ;; esac
+case "$mode" in formal|smoke|smoke2) ;; *) exit 2 ;; esac
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 session=luna_webshop_turnend_${mode}_0831
 logdir=/home/dataset-local/cjj/RL/runs/luna_webshop_turnend/launch_${mode}_20260831

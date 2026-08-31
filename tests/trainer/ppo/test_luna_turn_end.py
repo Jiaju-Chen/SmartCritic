@@ -123,3 +123,12 @@ def test_reject_mismatched_head_and_unknown_position():
         align_luna_value_logits(torch.zeros(1, 4, 1), 2, "action_end")
     with pytest.raises(ValueError, match="Unknown"):
         align_luna_value_logits(torch.zeros(1, 4, 2), 2, "last")
+
+
+def test_diagnostics_accept_rollout_object_array_outcomes():
+    mask = torch.tensor([[0., 1.], [0., 1.]])
+    advantages = torch.tensor([[2., 2.], [-1., -1.]])
+    outcomes = np.array([True, False], dtype=object)
+    metrics = turn_boundary_diagnostics(advantages, mask, mask, mask, outcomes)
+    assert metrics["turn_diag/success_raw_advantage_mean"] == 2.0
+    assert metrics["turn_diag/failure_raw_advantage_mean"] == -1.0

@@ -554,7 +554,7 @@ class RayPPOTrainer:
 
         self.use_turn_critic = self.config.algorithm.adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID
         self.use_unified_luna = self.config.algorithm.adv_estimator == AdvantageEstimator.LUNA_UNIFIED
-        turn_position = self.config.algorithm.hybrid_advantage.get("turn_value_position", "prompt_end")
+        turn_position = self.config.algorithm.get("hybrid_advantage", {}).get("turn_value_position", "prompt_end")
         if turn_position == "action_end" and not self.use_unified_luna:
             raise ValueError("action_end readout is supported only by luna_unified")
         if self.use_unified_luna and self.config.critic.get("turn_value_position", "prompt_end") != turn_position:

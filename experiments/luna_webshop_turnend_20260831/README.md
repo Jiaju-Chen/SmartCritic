@@ -36,7 +36,7 @@ training diagnostics, not independent estimates of true value accuracy.
 ## Run
 
 ```bash
-bash experiments/luna_webshop_turnend_20260831/launch.sh smoke
+bash experiments/luna_webshop_turnend_20260831/launch.sh smoke2
 bash experiments/luna_webshop_turnend_20260831/launch.sh formal
 ```
 
@@ -46,3 +46,8 @@ checkpoint roots. The original repository, runs, and SearchQA tunnel are untouch
 
 Formal W&B: `cjj01-ustc/verl_agent_webshop_critic_ablation/lunawsend0831`.
 Smoke W&B: `cjj01-ustc/verl_agent_webshop_critic_ablation/lunawsendprobe0831`.
+
+The first smoke stopped before updates because its diagnostic did not accept
+the rollout's object-dtype outcome array. A regression test reproduces the
+failure; explicit boolean conversion fixes it. `smoke2` uses a fresh run,
+`lunawsendprobe20831`, keeping the first log intact.

@@ -20,14 +20,15 @@ case "$mode" in
     export RUN_NAME=luna_unified2h_webshop_actionend_t128_v128_8gpu_seed0_20260831
     export WANDB_RUN_ID=lunawsend0831
     ;;
-  smoke)
-    export RUN_NAME=luna_unified2h_webshop_actionend_smoke_20260831
+  smoke|smoke2)
+    export RUN_NAME=luna_unified2h_webshop_actionend_${mode}_20260831
     export WANDB_RUN_ID=lunawsendprobe0831
+    if [[ "$mode" == smoke2 ]]; then export WANDB_RUN_ID=lunawsendprobe20831; fi
     export TRAIN_DATA_SIZE=16 VAL_DATA_SIZE=8 VAL_BATCH_SIZE=8
     export PPO_MINI_BATCH_SIZE=16 TOTAL_EPOCHS=1 TEST_FREQ=1 SAVE_FREQ=1
     export VAL_BEFORE_TRAIN=False
     ;;
-  *) echo "Usage: $0 {formal|smoke} [Hydra overrides]" >&2; exit 2 ;;
+  *) echo "Usage: $0 {formal|smoke|smoke2} [Hydra overrides]" >&2; exit 2 ;;
 esac
 export RUN_DIR=$RUN_ROOT/$RUN_NAME
 export CKPT_DIR=/home/dataset-local/cjj/RL/checkpoints/luna_webshop_turnend/$RUN_NAME

@@ -1,5 +1,6 @@
 """Read-only diagnostics with one equally weighted observation per action."""
 
+import numpy as np
 import torch
 
 
@@ -16,7 +17,7 @@ def turn_boundary_diagnostics(advantages, values, returns, boundary_mask, episod
         "turn_diag/action_count": selected.sum().item(),
     }
     if episode_success is not None:
-        success = torch.as_tensor(episode_success, device=values.device, dtype=torch.bool)
+        success = torch.as_tensor(np.asarray(episode_success, dtype=np.bool_), device=values.device)
         if success.ndim != 1 or success.numel() != selected.size(0):
             raise ValueError("episode_success must contain one outcome per action row")
         for name, condition in (("success", success), ("failure", ~success)):
