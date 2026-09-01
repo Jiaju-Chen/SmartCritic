@@ -1,25 +1,25 @@
 # SearchQA Luna residual ablation
 
 This experiment is the direct-mix counterpart of the completed two-layer,
-non-whitened SearchQA Luna run `lunauni8formal0830`.
+whitened SearchQA Luna run `lunauni8white0830`.
 
 ## Only algorithmic change
 
-Reference residual composition:
+Reference residual composition followed by final whitening:
 
 ```text
-A_actor = A_turn + (A_token - mean_within_action(A_token))
+A_actor = Whiten(A_turn + (A_token - mean_within_action(A_token)))
 ```
 
-Candidate direct composition:
+Candidate direct composition followed by the same final whitening:
 
 ```text
-A_actor = A_turn + A_token
+A_actor = Whiten(A_turn + A_token)
 ```
 
 Both value heads, both critic targets and losses, token/turn GAE, alpha=1, and
-all PPO settings remain unchanged. Final mixed-advantage whitening remains
-disabled in both runs.
+all PPO settings remain unchanged. Final mixed-advantage whitening is enabled
+in both runs.
 
 ## Fixed protocol
 
@@ -35,8 +35,12 @@ disabled in both runs.
 - W&B project: `cjj01-ustc/verl_agent_searchqa_critic_ablation`.
 
 `verify_config.py` compares the resolved candidate configuration with the
-completed reference run and refuses launch if anything besides composition and
-runtime identifiers differs.
+completed non-whitened residual reference config. It requires exactly the two
+intended algorithmic settings (`composition_mode=direct` and
+`whiten_advantages=True`) and refuses any other hyperparameter drift. The
+completed whitened residual run was independently audited against the same
+reference with whitening as its only algorithmic difference; therefore this
+candidate differs from it only in residual versus direct composition.
 
 ## Launch
 

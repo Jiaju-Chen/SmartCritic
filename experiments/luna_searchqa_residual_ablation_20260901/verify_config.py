@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 
 ALLOWED = {
     "algorithm.hybrid_advantage.composition_mode",
+    "algorithm.hybrid_advantage.whiten_advantages",
     "trainer.experiment_name",
     "trainer.default_local_dir",
     "ray_init._temp_dir",
@@ -48,8 +49,8 @@ def compare(candidate, reference):
         raise ValueError("Candidate composition must be direct")
     if old["algorithm.hybrid_advantage.whiten_advantages"] is not False:
         raise ValueError("Reference final mixed advantages must not be whitened")
-    if new["algorithm.hybrid_advantage.whiten_advantages"] is not False:
-        raise ValueError("Candidate final mixed advantages must not be whitened")
+    if new["algorithm.hybrid_advantage.whiten_advantages"] is not True:
+        raise ValueError("Candidate final mixed advantages must be whitened")
 
     return {
         "passed": not unexpected,
