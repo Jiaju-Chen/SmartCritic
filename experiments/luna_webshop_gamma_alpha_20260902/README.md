@@ -17,6 +17,8 @@ checkpoint slots.  W&B is always offline on `lzj`.
 The verified Python environment is deployed under
 `/root/vepfs-data/chenjiaju/conda_envs/smartcritic-webshop-20260902`; no files
 are installed into the server owner's environment or root filesystem.
+Ray uses the short persistent root `/root/vepfs-data/chenjiaju/r` so its Unix
+socket names remain below Linux's 107-byte limit.
 
 The managed sequence is:
 

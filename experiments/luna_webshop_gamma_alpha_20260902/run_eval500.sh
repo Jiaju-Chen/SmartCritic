@@ -23,8 +23,8 @@ WANDB_RUN_ID=${WANDB_RUN_ID:-lzw${EXPERIMENT_ID}e500_0902}
 OUT_DIR=${OUT_DIR:-$RUN_BASE/eval500/$EVAL_NAME}
 LOG=${LOG:-$OUT_DIR/eval.log}
 SUMMARY=${SUMMARY:-$OUT_DIR/summary.txt}
-RAY_TMP_ROOT=${RAY_TMP_ROOT:-/root/vepfs-data/chenjiaju/tmp/smartcritic/ray/$EVAL_NAME}
-FAST_TMP_ROOT=${FAST_TMP_ROOT:-/root/vepfs-data/chenjiaju/tmp/smartcritic/jobs/$EVAL_NAME}
+RAY_TMP_ROOT=${RAY_TMP_ROOT:-/root/vepfs-data/chenjiaju/r}
+FAST_TMP_ROOT=${FAST_TMP_ROOT:-/root/vepfs-data/chenjiaju/t/${EXPERIMENT_ID}e500}
 PYTHON=$ENV_ROOT/bin/python
 
 if [[ -s "$SUMMARY" ]] && grep -q '^status=finished$' "$SUMMARY" &&

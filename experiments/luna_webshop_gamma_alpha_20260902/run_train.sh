@@ -29,8 +29,10 @@ RUN_DIR=${RUN_DIR:-$RUN_BASE/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-$CKPT_BASE/$RUN_NAME}
 LOG=${LOG:-$RUN_DIR/train.log}
 SUMMARY=${SUMMARY:-$RUN_DIR/summary.txt}
-RAY_TMP_ROOT=${RAY_TMP_ROOT:-/root/vepfs-data/chenjiaju/tmp/smartcritic/ray/$RUN_NAME}
-FAST_TMP_ROOT=${FAST_TMP_ROOT:-/root/vepfs-data/chenjiaju/tmp/smartcritic/jobs/$RUN_NAME}
+# Ray's AF_UNIX socket path is limited to 107 bytes. Keep the Ray root short;
+# Ray creates a unique session directory beneath it for each sequential phase.
+RAY_TMP_ROOT=${RAY_TMP_ROOT:-/root/vepfs-data/chenjiaju/r}
+FAST_TMP_ROOT=${FAST_TMP_ROOT:-/root/vepfs-data/chenjiaju/t/$EXPERIMENT_ID}
 PYTHON=$ENV_ROOT/bin/python
 
 for path in "$PYTHON" "$MODEL_ROOT/config.json" "$TRAIN_DATA_ROOT/train.parquet" "$TRAIN_DATA_ROOT/test.parquet"; do
