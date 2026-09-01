@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}
-ENV_ROOT=${ENV_ROOT:-/root/vepfs-data/chenjiaju/conda_envs/smartcritic-webshop}
+ENV_ROOT=${ENV_ROOT:-/root/vepfs-data/chenjiaju/conda_envs/smartcritic-webshop-20260902}
 MODEL_ROOT=${MODEL_ROOT:-/root/vepfs-data/chenjiaju/models/Qwen2.5-1.5B-Instruct}
 RESOURCE_ROOT=${WEBSHOP_RESOURCE_ROOT:-/root/vepfs-data/chenjiaju/datasets/webshop-small}
 EVAL_DATA_ROOT=${EVAL_DATA_ROOT:-/root/vepfs-data/chenjiaju/datasets/webshop-parquet/eval500/text}
@@ -193,4 +193,3 @@ fi
 } > "$SUMMARY"
 
 echo "Evaluation finished: $EVAL_NAME"
-

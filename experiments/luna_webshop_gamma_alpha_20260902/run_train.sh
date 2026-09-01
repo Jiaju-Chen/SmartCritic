@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}
-ENV_ROOT=${ENV_ROOT:-/root/vepfs-data/chenjiaju/conda_envs/smartcritic-webshop}
+ENV_ROOT=${ENV_ROOT:-/root/vepfs-data/chenjiaju/conda_envs/smartcritic-webshop-20260902}
 MODEL_ROOT=${MODEL_ROOT:-/root/vepfs-data/chenjiaju/models/Qwen2.5-1.5B-Instruct}
 RESOURCE_ROOT=${WEBSHOP_RESOURCE_ROOT:-/root/vepfs-data/chenjiaju/datasets/webshop-small}
 TRAIN_DATA_ROOT=${TRAIN_DATA_ROOT:-/root/vepfs-data/chenjiaju/datasets/webshop-parquet/train128-val128/text}
@@ -228,4 +228,3 @@ fi
 } > "$SUMMARY"
 
 echo "Training finished: $RUN_NAME at step $latest_step"
-
