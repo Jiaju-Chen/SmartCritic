@@ -36,6 +36,7 @@ link_resource() {
 
 require_file "$RESOURCE_ROOT/data/items_shuffle_1000.json"
 require_file "$RESOURCE_ROOT/data/items_ins_v2_1000.json"
+require_file "$RESOURCE_ROOT/data/items_human_ins.json"
 mkdir -p "$LOCAL_ROOT/search_engine"
 link_resource "$RESOURCE_ROOT/data" "$LOCAL_ROOT/data"
 
@@ -47,4 +48,3 @@ for resource in indexes indexes_100 indexes_1k indexes_100k; do
 done
 
 echo "WebShop resources ready under $LOCAL_ROOT"
-

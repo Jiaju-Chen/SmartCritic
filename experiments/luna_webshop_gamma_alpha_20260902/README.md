@@ -27,3 +27,7 @@ The managed sequence is:
 
 `run_sequence.sh` is fail-fast.  It will not start a later phase unless the
 previous phase has produced the expected completion marker.
+
+The portable small WebShop resource bundle contains the two 1k-product files,
+`items_human_ins.json` (loaded unconditionally by the upstream environment),
+and the four small Lucene index aliases used by the environment code.
