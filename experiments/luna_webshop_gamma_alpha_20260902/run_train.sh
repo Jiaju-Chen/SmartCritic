@@ -189,7 +189,7 @@ set +e
   trainer.test_freq="$TEST_FREQ" \
   trainer.save_freq="$SAVE_FREQ" \
   trainer.checkpoint_slot_mode=best_latest \
-  "trainer.best_checkpoint_metric=val/webshop_task_score (not success_rate)" \
+  "trainer.best_checkpoint_metric='val/webshop_task_score (not success_rate)'" \
   trainer.monitor_validation_size=32 \
   trainer.val_before_train=True \
   trainer.resume_mode=auto \
