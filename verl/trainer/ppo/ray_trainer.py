@@ -270,7 +270,7 @@ def compute_response_mask(data: DataProto):
     return attention_mask[:, -response_length:]
 
 
-def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, hybrid_advantage_cfg=None, **kwargs):
+def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_repeat=1, multi_turn=False, norm_adv_by_std_in_grpo=True, step_advantage_w=1.0, gigpo_mode="mean_std_norm", gigpo_enable_similarity=False, gigpo_similarity_thresh=0.95, progress_value_cfg=None, hybrid_advantage_cfg=None, hybrid_advantage_state=None, **kwargs):
     """Compute advantage estimates for policy optimization.
 
     This function computes advantage estimates using various estimators like GAE, GRPO, REINFORCE++, etc.
@@ -340,6 +340,8 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
             token_residual_scale=hybrid_advantage_cfg.get("token_residual_scale", 1.0),
             composition_mode=hybrid_advantage_cfg.get("composition_mode", "residual"),
             whiten_advantages=hybrid_advantage_cfg.get("whiten_advantages", True),
+            adaptive_residual_scale_cfg=hybrid_advantage_cfg.get("adaptive_residual_scale", {}),
+            adaptive_residual_scale_state=hybrid_advantage_state,
         )
         data.batch["advantages"] = advantages
         data.batch["returns"] = returns
@@ -553,10 +555,33 @@ class RayPPOTrainer:
 
         self.use_turn_critic = self.config.algorithm.adv_estimator == AdvantageEstimator.DUAL_CRITIC_HYBRID
         self.use_unified_luna = self.config.algorithm.adv_estimator == AdvantageEstimator.LUNA_UNIFIED
+        self.hybrid_advantage_scale_state = {}
         if self.use_turn_critic and Role.TurnCritic not in role_worker_mapping:
             raise ValueError("dual_critic_hybrid requires a TurnCritic worker")
         if self.use_unified_luna and int(self.config.critic.model.get("num_value_heads", 1)) != 2:
             raise ValueError("luna_unified requires critic.model.num_value_heads=2")
+
+        adaptive_scale_cfg = self.config.algorithm.hybrid_advantage.get(
+            "adaptive_residual_scale", {}
+        )
+        if adaptive_scale_cfg.get("enabled", False):
+            if self.config.algorithm.hybrid_advantage.get("composition_mode", "residual") != "residual":
+                raise ValueError(
+                    "hybrid_advantage.adaptive_residual_scale requires composition_mode=residual"
+                )
+            target_ratio = float(adaptive_scale_cfg.get("target_ratio", 0.5))
+            ema_beta = float(adaptive_scale_cfg.get("ema_beta", 0.9))
+            epsilon = float(adaptive_scale_cfg.get("epsilon", 1e-8))
+            min_scale = float(adaptive_scale_cfg.get("min_scale", 0.0))
+            max_scale = float(adaptive_scale_cfg.get("max_scale", 10.0))
+            if target_ratio < 0.0:
+                raise ValueError("adaptive residual target_ratio must be non-negative")
+            if not 0.0 <= ema_beta < 1.0:
+                raise ValueError("adaptive residual ema_beta must be in [0, 1)")
+            if epsilon <= 0.0:
+                raise ValueError("adaptive residual epsilon must be positive")
+            if min_scale < 0.0 or max_scale < min_scale:
+                raise ValueError("adaptive residual scales require 0 <= min_scale <= max_scale")
 
         self._validate_config()
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
@@ -1122,6 +1147,16 @@ class RayPPOTrainer:
         dataloader_state_dict = self.train_dataloader.state_dict()
         torch.save(dataloader_state_dict, dataloader_local_path)
 
+        adaptive_scale_cfg = self.config.algorithm.hybrid_advantage.get(
+            "adaptive_residual_scale", {}
+        )
+        if adaptive_scale_cfg.get("enabled", False):
+            adaptive_state_path = os.path.join(
+                local_global_step_folder, "hybrid_advantage_scale_state.json"
+            )
+            with open(adaptive_state_path, "w") as f:
+                json.dump(self.hybrid_advantage_scale_state, f, indent=2, sort_keys=True)
+
         if checkpoint_slot in (None, "latest"):
             # latest checkpointed iteration tracker (for atomic usage)
             local_latest_checkpointed_iteration = os.path.join(self.config.trainer.default_local_dir, "latest_checkpointed_iteration.txt")
@@ -1191,6 +1226,26 @@ class RayPPOTrainer:
             self.train_dataloader.load_state_dict(dataloader_state_dict)
         else:
             print(f"Warning: No dataloader state found at {dataloader_local_path}, will start from scratch")
+
+        adaptive_scale_cfg = self.config.algorithm.hybrid_advantage.get(
+            "adaptive_residual_scale", {}
+        )
+        if adaptive_scale_cfg.get("enabled", False):
+            adaptive_state_path = os.path.join(
+                global_step_folder, "hybrid_advantage_scale_state.json"
+            )
+            if os.path.exists(adaptive_state_path):
+                with open(adaptive_state_path) as f:
+                    self.hybrid_advantage_scale_state.update(json.load(f))
+                print(
+                    "Loaded adaptive hybrid advantage state from "
+                    f"{adaptive_state_path}"
+                )
+            else:
+                print(
+                    "Warning: No adaptive hybrid advantage state found at "
+                    f"{adaptive_state_path}; EMA statistics will restart"
+                )
 
     def _balance_batch(self, batch: DataProto, metrics, logging_prefix="global_seqlen"):
         """Reorder the data on single controller such that each dp rank gets similar total tokens"""
@@ -1462,6 +1517,7 @@ class RayPPOTrainer:
                             gigpo_similarity_thresh=self.config.algorithm.gigpo.similarity_thresh,
                             progress_value_cfg=self.config.algorithm.get("progress_value", {}),
                             hybrid_advantage_cfg=self.config.algorithm.get("hybrid_advantage", {}),
+                            hybrid_advantage_state=self.hybrid_advantage_scale_state,
                         )
 
                         if self.use_turn_critic or self.use_unified_luna:
@@ -1477,6 +1533,23 @@ class RayPPOTrainer:
                                     "hybrid/turn_value_mean": masked_mean(batch.batch["turn_values"], turn_mask).item(),
                                 }
                             )
+                            adaptive_scale_cfg = self.config.algorithm.hybrid_advantage.get(
+                                "adaptive_residual_scale", {}
+                            )
+                            if adaptive_scale_cfg.get("enabled", False):
+                                adaptive_state = self.hybrid_advantage_scale_state
+                                metrics.update(
+                                    {
+                                        "hybrid/adaptive_residual_scale": adaptive_state["scale"],
+                                        "hybrid/adaptive_residual_raw_scale": adaptive_state["raw_scale"],
+                                        "hybrid/adaptive_target_ratio": adaptive_state["target_ratio"],
+                                        "hybrid/adaptive_batch_weighted_ratio": adaptive_state["batch_weighted_ratio"],
+                                        "hybrid/adaptive_ema_weighted_ratio": adaptive_state["ema_weighted_ratio"],
+                                        "hybrid/adaptive_ema_turn_rms": adaptive_state["turn_rms"],
+                                        "hybrid/adaptive_ema_residual_rms": adaptive_state["residual_rms"],
+                                        "hybrid/adaptive_scale_clipped": adaptive_state["scale_clipped"],
+                                    }
+                                )
 
                     # update critic
                     if self.use_critic:

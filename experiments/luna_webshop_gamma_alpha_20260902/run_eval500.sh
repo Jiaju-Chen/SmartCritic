@@ -12,6 +12,11 @@ CKPT_BASE=${CKPT_BASE:-/root/vepfs-data/chenjiaju/checkpoints/luna_webshop_gamma
 
 EXPERIMENT_ID=${EXPERIMENT_ID:?EXPERIMENT_ID is required}
 ALPHA=${ALPHA:?ALPHA is required}
+ADAPTIVE_RESIDUAL_SCALE=${ADAPTIVE_RESIDUAL_SCALE:-False}
+ADAPTIVE_TARGET_RATIO=${ADAPTIVE_TARGET_RATIO:-0.5}
+ADAPTIVE_EMA_BETA=${ADAPTIVE_EMA_BETA:-0.9}
+ADAPTIVE_MIN_SCALE=${ADAPTIVE_MIN_SCALE:-0.0}
+ADAPTIVE_MAX_SCALE=${ADAPTIVE_MAX_SCALE:-10.0}
 TURN_GAMMA=${TURN_GAMMA:-0.95}
 TURN_LAMBDA=${TURN_LAMBDA:-0.95}
 TOKEN_GAMMA=${TOKEN_GAMMA:-1.0}
@@ -94,6 +99,11 @@ set +e
   algorithm.hybrid_advantage.token_residual_scale="$ALPHA" \
   algorithm.hybrid_advantage.composition_mode=residual \
   algorithm.hybrid_advantage.whiten_advantages=True \
+  algorithm.hybrid_advantage.adaptive_residual_scale.enabled="$ADAPTIVE_RESIDUAL_SCALE" \
+  algorithm.hybrid_advantage.adaptive_residual_scale.target_ratio="$ADAPTIVE_TARGET_RATIO" \
+  algorithm.hybrid_advantage.adaptive_residual_scale.ema_beta="$ADAPTIVE_EMA_BETA" \
+  algorithm.hybrid_advantage.adaptive_residual_scale.min_scale="$ADAPTIVE_MIN_SCALE" \
+  algorithm.hybrid_advantage.adaptive_residual_scale.max_scale="$ADAPTIVE_MAX_SCALE" \
   algorithm.use_kl_in_reward=False \
   reward_model.use_step_rewards=True \
   data.train_files="$EVAL_DATA_ROOT/train.parquet" \
@@ -188,6 +198,9 @@ fi
   echo "checkpoint_step=$latest_step"
   echo 'evaluated_cases=500'
   echo "alpha=$ALPHA"
+  echo "adaptive_residual_scale=$ADAPTIVE_RESIDUAL_SCALE"
+  echo "adaptive_target_ratio=$ADAPTIVE_TARGET_RATIO"
+  echo "adaptive_ema_beta=$ADAPTIVE_EMA_BETA"
   echo "finished_at=$(date -Is)"
   grep -E 'Initial validation metrics|val/(full_success_rate|webshop_task_score|evaluated_cases)' "$LOG" | tail -n 3 || true
 } > "$SUMMARY"

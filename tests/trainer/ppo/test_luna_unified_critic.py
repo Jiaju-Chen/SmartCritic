@@ -151,3 +151,86 @@ def test_luna_actor_advantage_rejects_unknown_composition(monkeypatch):
             composition_mode="unknown",
             whiten_advantages=False,
         )
+
+
+def test_luna_adaptive_residual_scale_hits_first_batch_target(monkeypatch):
+    token_advantages = torch.tensor([[1.0, 3.0]])
+    monkeypatch.setattr(
+        core_algos,
+        "compute_sao_skip_observation_gae",
+        lambda **_kwargs: (token_advantages, torch.zeros_like(token_advantages)),
+    )
+    state = {}
+
+    advantages, *_ = core_algos.compute_dual_critic_hybrid_gae(
+        token_level_rewards=torch.tensor([[2.0, 0.0]]),
+        token_values=torch.zeros((1, 2)),
+        turn_values=torch.zeros((1, 2)),
+        response_mask=torch.ones((1, 2)),
+        traj_index=np.array(["trajectory"]),
+        step_id=np.array([0]),
+        token_gamma=1.0,
+        token_lam=1.0,
+        turn_gamma=0.0,
+        turn_lam=0.0,
+        composition_mode="residual",
+        whiten_advantages=False,
+        adaptive_residual_scale_cfg={
+            "enabled": True,
+            "target_ratio": 0.5,
+            "ema_beta": 0.9,
+            "epsilon": 1e-8,
+            "min_scale": 0.0,
+            "max_scale": 10.0,
+        },
+        adaptive_residual_scale_state=state,
+    )
+
+    torch.testing.assert_close(advantages, torch.tensor([[1.0, 3.0]]))
+    assert state["updates"] == 1
+    assert state["scale"] == pytest.approx(1.0)
+    assert state["batch_weighted_ratio"] == pytest.approx(0.5)
+    assert state["ema_weighted_ratio"] == pytest.approx(0.5)
+    assert state["scale_clipped"] == 0.0
+
+
+def test_luna_adaptive_residual_scale_uses_ema_second_moments():
+    state = {}
+    mask = torch.ones((1, 2))
+    residuals = torch.tensor([[-1.0, 1.0]])
+
+    first_scale = core_algos.update_luna_residual_scale(
+        turn_advantages=torch.tensor([[2.0, 2.0]]),
+        token_residuals=residuals,
+        response_mask=mask,
+        state=state,
+        target_ratio=0.5,
+        ema_beta=0.5,
+    )
+    second_scale = core_algos.update_luna_residual_scale(
+        turn_advantages=torch.tensor([[4.0, 4.0]]),
+        token_residuals=residuals,
+        response_mask=mask,
+        state=state,
+        target_ratio=0.5,
+        ema_beta=0.5,
+    )
+
+    assert first_scale == pytest.approx(1.0)
+    assert state["turn_second_moment"] == pytest.approx(10.0)
+    assert state["residual_second_moment"] == pytest.approx(1.0)
+    assert second_scale == pytest.approx(0.5 * np.sqrt(10.0), rel=1e-6)
+    assert state["ema_weighted_ratio"] == pytest.approx(0.5)
+
+
+def test_luna_adaptive_residual_scale_disables_empty_residual_branch():
+    state = {}
+    scale = core_algos.update_luna_residual_scale(
+        turn_advantages=torch.ones((1, 2)),
+        token_residuals=torch.zeros((1, 2)),
+        response_mask=torch.ones((1, 2)),
+        state=state,
+    )
+
+    assert scale == 0.0
+    assert state["batch_weighted_ratio"] == 0.0

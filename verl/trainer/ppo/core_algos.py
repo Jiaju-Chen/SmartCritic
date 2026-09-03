@@ -19,6 +19,7 @@ implement PPO
 """
 
 from collections import defaultdict
+from typing import Optional
 
 import numpy as np
 import torch
@@ -190,6 +191,110 @@ def compute_sao_skip_observation_gae(
     return advantages, returns
 
 
+def update_luna_residual_scale(
+    turn_advantages: torch.Tensor,
+    token_residuals: torch.Tensor,
+    response_mask: torch.Tensor,
+    state: dict,
+    target_ratio: float = 0.5,
+    ema_beta: float = 0.9,
+    epsilon: float = 1e-8,
+    min_scale: float = 0.0,
+    max_scale: float = 10.0,
+) -> float:
+    """Track branch RMS values and calibrate the Luna residual scale.
+
+    The first batch initializes the running second moments directly. Later
+    batches use an EMA so short-lived critic noise does not immediately change
+    the actor objective. With unclipped current-batch statistics, the returned
+    scale makes RMS(scale * token_residuals) / RMS(turn_advantages) equal to
+    ``target_ratio`` under ``response_mask``.
+    """
+    if state is None:
+        raise ValueError("Adaptive Luna residual scaling requires a mutable state dictionary")
+    if not 0.0 <= float(ema_beta) < 1.0:
+        raise ValueError(f"ema_beta must be in [0, 1), got {ema_beta}")
+    if float(target_ratio) < 0.0:
+        raise ValueError(f"target_ratio must be non-negative, got {target_ratio}")
+    if float(epsilon) <= 0.0:
+        raise ValueError(f"epsilon must be positive, got {epsilon}")
+    if float(min_scale) < 0.0 or float(max_scale) < float(min_scale):
+        raise ValueError(
+            f"Expected 0 <= min_scale <= max_scale, got {min_scale} and {max_scale}"
+        )
+
+    mask = response_mask.to(dtype=torch.float32)
+    valid_count = mask.sum()
+    if valid_count.item() <= 0:
+        raise ValueError("Adaptive Luna residual scaling requires at least one valid response token")
+
+    turn_second_moment = (
+        turn_advantages.float().square() * mask
+    ).sum() / valid_count
+    residual_second_moment = (
+        token_residuals.float().square() * mask
+    ).sum() / valid_count
+    batch_turn_second_moment = float(turn_second_moment.item())
+    batch_residual_second_moment = float(residual_second_moment.item())
+
+    updates = int(state.get("updates", 0))
+    if updates == 0:
+        ema_turn_second_moment = batch_turn_second_moment
+        ema_residual_second_moment = batch_residual_second_moment
+    else:
+        beta = float(ema_beta)
+        ema_turn_second_moment = (
+            beta * float(state["turn_second_moment"])
+            + (1.0 - beta) * batch_turn_second_moment
+        )
+        ema_residual_second_moment = (
+            beta * float(state["residual_second_moment"])
+            + (1.0 - beta) * batch_residual_second_moment
+        )
+
+    eps = float(epsilon)
+    ema_turn_rms = float(np.sqrt(max(ema_turn_second_moment, 0.0) + eps))
+    ema_residual_rms = float(np.sqrt(max(ema_residual_second_moment, 0.0) + eps))
+    batch_turn_rms = float(np.sqrt(max(batch_turn_second_moment, 0.0)))
+    batch_residual_rms = float(np.sqrt(max(batch_residual_second_moment, 0.0)))
+
+    if ema_residual_second_moment <= eps:
+        raw_scale = 0.0
+    else:
+        raw_scale = float(target_ratio) * ema_turn_rms / ema_residual_rms
+    scale = float(np.clip(raw_scale, float(min_scale), float(max_scale)))
+    batch_weighted_ratio = (
+        scale * batch_residual_rms / batch_turn_rms
+        if batch_turn_rms > 0.0
+        else 0.0
+    )
+    ema_weighted_ratio = (
+        scale * ema_residual_rms / ema_turn_rms
+        if ema_turn_rms > 0.0
+        else 0.0
+    )
+
+    state.update(
+        {
+            "updates": updates + 1,
+            "turn_second_moment": ema_turn_second_moment,
+            "residual_second_moment": ema_residual_second_moment,
+            "turn_rms": ema_turn_rms,
+            "residual_rms": ema_residual_rms,
+            "batch_turn_rms": batch_turn_rms,
+            "batch_residual_rms": batch_residual_rms,
+            "raw_scale": raw_scale,
+            "scale": scale,
+            "scale_clipped": float(scale != raw_scale),
+            "batch_weighted_ratio": batch_weighted_ratio,
+            "ema_weighted_ratio": ema_weighted_ratio,
+            "target_ratio": float(target_ratio),
+            "ema_beta": float(ema_beta),
+        }
+    )
+    return scale
+
+
 def compute_dual_critic_hybrid_gae(
     token_level_rewards: torch.Tensor,
     token_values: torch.Tensor,
@@ -204,6 +309,8 @@ def compute_dual_critic_hybrid_gae(
     token_residual_scale: float = 1.0,
     composition_mode: str = "residual",
     whiten_advantages: bool = True,
+    adaptive_residual_scale_cfg: Optional[dict] = None,
+    adaptive_residual_scale_state: Optional[dict] = None,
 ):
     """Combine skip-observation token credit with a separate turn critic.
 
@@ -288,8 +395,28 @@ def compute_dual_critic_hybrid_gae(
             row_advantages = token_advantages[row, valid_positions]
             token_residuals[row, valid_positions] = row_advantages - row_advantages.mean()
 
+        adaptive_residual_scale_cfg = adaptive_residual_scale_cfg or {}
+        adaptive_scale_enabled = bool(adaptive_residual_scale_cfg.get("enabled", False))
+        if adaptive_scale_enabled and composition_mode != "residual":
+            raise ValueError(
+                "Adaptive Luna residual scaling is only defined for composition_mode='residual'"
+            )
+
         if composition_mode == "residual":
-            hybrid_advantages = turn_advantages + float(token_residual_scale) * token_residuals
+            residual_scale = float(token_residual_scale)
+            if adaptive_scale_enabled:
+                residual_scale = update_luna_residual_scale(
+                    turn_advantages=turn_advantages,
+                    token_residuals=token_residuals,
+                    response_mask=response_mask,
+                    state=adaptive_residual_scale_state,
+                    target_ratio=adaptive_residual_scale_cfg.get("target_ratio", 0.5),
+                    ema_beta=adaptive_residual_scale_cfg.get("ema_beta", 0.9),
+                    epsilon=adaptive_residual_scale_cfg.get("epsilon", 1e-8),
+                    min_scale=adaptive_residual_scale_cfg.get("min_scale", 0.0),
+                    max_scale=adaptive_residual_scale_cfg.get("max_scale", 10.0),
+                )
+            hybrid_advantages = turn_advantages + residual_scale * token_residuals
         elif composition_mode == "direct":
             hybrid_advantages = turn_advantages + float(token_residual_scale) * token_advantages
         elif composition_mode == "token_only":
