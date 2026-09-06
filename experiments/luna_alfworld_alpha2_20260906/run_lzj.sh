@@ -12,6 +12,7 @@ RUN_DIR=${RUN_DIR:-$RUN_ROOT/$RUN_NAME}
 CKPT_DIR=${CKPT_DIR:-$BASE/checkpoints/luna_alfworld_alpha2_20260906/$RUN_NAME}
 MODEL_PATH=${MODEL_PATH:-$BASE/models/Qwen2.5-1.5B-Instruct}
 ALFWORLD_DATA=${ALFWORLD_DATA:-$BASE/data/alfworld_data}
+PREPARED_DATA_DIR=${PREPARED_DATA_DIR:-$BASE/data/verl-agent/text}
 
 TRAIN_DATA_SIZE=${TRAIN_DATA_SIZE:-128}
 VAL_DATA_SIZE=${VAL_DATA_SIZE:-140}
@@ -30,7 +31,9 @@ mkdir -p \
   "$BASE/r2" \
   "$BASE/t2"
 
+set +u
 source "$ENV_DIR/bin/activate"
+set -u
 cd "$PROJECT_ROOT"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
@@ -61,17 +64,29 @@ export RAYON_NUM_THREADS=${RAYON_NUM_THREADS:-1}
 export NUM_CPUS_PER_ENV_WORKER=${NUM_CPUS_PER_ENV_WORKER:-0.5}
 export TRAIN_DATA_SIZE
 export VAL_DATA_SIZE
+export SKIP_DATA_PREP=1
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 
 test -x "$ENV_DIR/bin/python"
 test -f "$MODEL_PATH/config.json"
 test -d "$ALFWORLD_DATA/json_2.1.1/train"
 test -d "$ALFWORLD_DATA/json_2.1.1/valid_seen"
+test -f "$PREPARED_DATA_DIR/train.parquet"
+test -f "$PREPARED_DATA_DIR/test.parquet"
+
+mkdir -p "$HOME/data/verl-agent/text"
+cp "$PREPARED_DATA_DIR/train.parquet" "$HOME/data/verl-agent/text/train.parquet"
+cp "$PREPARED_DATA_DIR/test.parquet" "$HOME/data/verl-agent/text/test.parquet"
 
 python - <<'PY'
 import alfworld
 import textworld
 PY
+
+if [[ ${PREFLIGHT_ONLY:-0} == 1 ]]; then
+  echo "ALFWorld alpha=2 launcher preflight passed"
+  exit 0
+fi
 
 bash examples/ppo_trainer/run_alfworld.sh vllm \
   algorithm.adv_estimator=luna_unified \
