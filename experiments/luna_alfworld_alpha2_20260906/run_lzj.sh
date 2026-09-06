@@ -30,7 +30,7 @@ mkdir -p \
   "$BASE/r2" \
   "$BASE/t2"
 
-source /opt/conda/bin/activate "$ENV_DIR"
+source "$ENV_DIR/bin/activate"
 cd "$PROJECT_ROOT"
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
@@ -129,4 +129,3 @@ bash examples/ppo_trainer/run_alfworld.sh vllm \
   env.resources_per_worker.num_cpus="$NUM_CPUS_PER_ENV_WORKER" \
   ray_init.num_cpus="$RAY_NUM_CPUS" \
   +ray_init._temp_dir="$RAY_TMPDIR"
-
